@@ -1,0 +1,10 @@
+target/
+*.class
+dependency-reduced-pom.xml
+.idea/
+*.iml
+.vscode/
+fitconnect-received/
+fitconnect-attachments/
+keys/
+scripts/.env.local.sh
