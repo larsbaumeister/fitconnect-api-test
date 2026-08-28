@@ -10,6 +10,7 @@ import dev.fitko.fitconnect.api.domain.sender.steps.unencrypted.ServiceTypeStep;
 import dev.fitko.fitconnect.api.exceptions.client.FitConnectSenderException;
 import dev.fitko.fitconnect.client.SenderClient;
 import com.gfi.ozg.fitko.spring.config.MetadataVersions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
  * it to the SDK's {@link SenderClient}. Mirrors the CLI sender sample's
  * {@code SubmissionSubmitter}.
  */
+@Slf4j
 public class DefaultAntragSender implements AntragSender {
 
     private final SenderClient senderClient;
@@ -32,9 +34,15 @@ public class DefaultAntragSender implements AntragSender {
     public SentSubmission send(AntragToSend antrag) {
         UUID destinationId = requireDestinationId(antrag);
         SendableSubmission submission = buildSubmission(destinationId, antrag);
+        log.debug("Sending Antrag (service={}) to destination {}", antrag.getServiceId(), destinationId);
         try {
-            return senderClient.send(submission);
+            SentSubmission sent = senderClient.send(submission);
+            log.debug("Sent Antrag to destination {}: submissionId={}, caseId={}",
+                    destinationId, sent.getSubmissionId(), sent.getCaseId());
+            return sent;
         } catch (FitConnectSenderException e) {
+            log.warn("Failed to send Antrag (service={}) to destination {}",
+                    antrag.getServiceId(), destinationId, e);
             throw new AntragSendException("Failed to send Antrag to destination " + destinationId, e);
         }
     }

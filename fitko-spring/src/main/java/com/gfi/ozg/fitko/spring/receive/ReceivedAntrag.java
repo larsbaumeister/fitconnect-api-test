@@ -8,6 +8,7 @@ import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * decides what happens to a submission no listener resolved.
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@Slf4j
 public final class ReceivedAntrag {
 
     private final ReceivedSubmission delegate;
@@ -35,12 +37,14 @@ public final class ReceivedAntrag {
     /** Accepts the submission; it is then deleted from the delivery service. */
     public void accept() {
         markResolved("accept");
+        log.debug("Accepting submission {}", delegate.getSubmissionId());
         delegate.acceptSubmission();
     }
 
     /** Rejects the submission with the given reasons; it is then deleted from the delivery service. */
     public void reject(List<Problem> problems) {
         markResolved("reject");
+        log.debug("Rejecting submission {} with {} problem(s)", delegate.getSubmissionId(), problems.size());
         delegate.rejectSubmission(problems);
     }
 

@@ -8,8 +8,7 @@ import dev.fitko.fitconnect.api.domain.model.submission.SubmissionForPickup;
 import dev.fitko.fitconnect.api.domain.validation.ValidationResult;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,9 +45,8 @@ import java.util.stream.Collectors;
  * secret returns 404 here (it's still reachable via polling).
  */
 @RestController
+@Slf4j
 public class FitConnectCallbackController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(FitConnectCallbackController.class);
 
     private final Map<UUID, ReceivingDestination> destinationsById;
     private final SubmissionProcessor submissionProcessor;
@@ -69,18 +67,21 @@ public class FitConnectCallbackController {
             @RequestHeader(CallbackHeaderKeys.TIMESTAMP) long timestampInSec,
             @RequestBody String rawBody) {
 
+        log.debug("Received callback for destination {}", destinationId);
+
         ReceivingDestination destination = destinationsById.get(destinationId);
         if (destination == null || !destination.supportsCallback()) {
-            LOGGER.warn("Rejected callback for unknown or non-callback destination {}", destinationId);
+            log.warn("Rejected callback for unknown or non-callback destination {}", destinationId);
             return ResponseEntity.notFound().build();
         }
 
         ValidationResult validation = destination.client()
                 .validateCallback(hmac, timestampInSec, rawBody, destination.callbackSecret());
         if (!validation.isValid()) {
-            LOGGER.warn("Rejected callback for destination {}: failed validation", destinationId);
+            log.warn("Rejected callback for destination {}: failed validation", destinationId);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        log.debug("Callback for destination {} passed HMAC validation", destinationId);
 
         NewEventsCallback event = parseBody(destinationId, rawBody);
         if (event == null) {
@@ -88,12 +89,15 @@ public class FitConnectCallbackController {
         }
 
         List<SubmissionForPickup> submissions = event.getSubmissions();
-        if (submissions != null) {
+        if (submissions == null || submissions.isEmpty()) {
+            log.debug("Callback for destination {} listed no submissions", destinationId);
+        } else {
+            log.debug("Callback for destination {} listed {} submission(s)", destinationId, submissions.size());
             for (SubmissionForPickup submission : submissions) {
                 if (destinationId.equals(submission.getDestinationId())) {
                     submissionProcessor.process(destination.client(), submission.getSubmissionId());
                 } else {
-                    LOGGER.warn("Callback for destination {} listed a submission for destination {}, ignored",
+                    log.warn("Callback for destination {} listed a submission for destination {}, ignored",
                             destinationId, submission.getDestinationId());
                 }
             }
@@ -107,7 +111,7 @@ public class FitConnectCallbackController {
         try {
             return objectMapper.readValue(rawBody, NewEventsCallback.class);
         } catch (JsonProcessingException e) {
-            LOGGER.warn("Rejected callback for destination {}: body is not a valid callback event", destinationId, e);
+            log.warn("Rejected callback for destination {}: body is not a valid callback event", destinationId, e);
             return null;
         }
     }

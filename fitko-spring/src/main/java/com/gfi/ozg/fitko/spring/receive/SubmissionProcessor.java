@@ -3,8 +3,7 @@ package com.gfi.ozg.fitko.spring.receive;
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import dev.fitko.fitconnect.client.SubscriberClient;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Objects;
@@ -17,9 +16,8 @@ import java.util.UUID;
  * an inbound HTTP notification) both need identically, once a submission id
  * and the {@link SubscriberClient} that owns its destination are known.
  */
+@Slf4j
 public class SubmissionProcessor {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SubmissionProcessor.class);
 
     private final ApplicationEventPublisher eventPublisher;
     private final FitConnectProperties.Receiver receiverProperties;
@@ -37,12 +35,20 @@ public class SubmissionProcessor {
      */
     public void process(SubscriberClient client, UUID submissionId) {
         try {
+            log.debug("Fetching submission {}", submissionId);
             ReceivedSubmission submission = client.requestSubmission(submissionId);
             ReceivedAntrag antrag = new ReceivedAntrag(submission);
             eventPublisher.publishEvent(new AntragReceivedEvent(this, antrag));
-            antrag.applyIfUnresolved(receiverProperties.getDefaultOutcome());
+            if (antrag.isResolved()) {
+                log.debug("Submission {} was accepted/rejected by a listener", submissionId);
+            } else {
+                DefaultOutcome outcome = receiverProperties.getDefaultOutcome();
+                log.debug("Submission {} was not resolved by any listener, applying default outcome {}",
+                        submissionId, outcome);
+                antrag.applyIfUnresolved(outcome);
+            }
         } catch (RuntimeException e) {
-            LOGGER.error("Failed to process submission {}, it stays on the delivery service", submissionId, e);
+            log.error("Failed to process submission {}, it stays on the delivery service", submissionId, e);
         }
     }
 }

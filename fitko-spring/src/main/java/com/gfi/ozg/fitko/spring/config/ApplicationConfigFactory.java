@@ -12,6 +12,7 @@ import dev.fitko.fitconnect.api.config.http.HttpConfig;
 import dev.fitko.fitconnect.api.config.http.Timeouts;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 
 import java.io.IOException;
@@ -44,15 +45,18 @@ import java.util.Map;
  * does exactly that, once per {@link FitConnectProperties.Receiver.Destination}.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
+@Slf4j
 public final class ApplicationConfigFactory {
 
     public static ApplicationConfig create(FitConnectProperties properties) {
+        log.debug("Building ApplicationConfig for environment {}", properties.getEnvironment());
         EnvironmentName environmentName = new EnvironmentName(properties.getEnvironment());
 
         ApplicationConfig.ApplicationConfigBuilder builder = ApplicationConfig.builder()
                 .activeEnvironment(environmentName);
 
         if (properties.getSender().isEnabled()) {
+            log.debug("Sender enabled: adding SenderConfig (client-id={})", properties.getSender().getClientId());
             builder.senderConfig(toSenderConfig(properties.getSender()));
         }
 
@@ -65,6 +69,7 @@ public final class ApplicationConfigFactory {
 
         Environment override = toEnvironmentOverride(properties);
         if (override != null) {
+            log.debug("Applying environment overrides to {}", environmentName.getName());
             Map<EnvironmentName, Environment> environments = new HashMap<>(config.getEnvironments());
             Environment sdkDefault = environments.getOrDefault(environmentName, new Environment());
             environments.put(environmentName, override.merge(sdkDefault));
@@ -103,6 +108,7 @@ public final class ApplicationConfigFactory {
      */
     public static SubscriberConfig createSubscriberConfig(FitConnectProperties.Receiver receiver,
                                                             FitConnectProperties.Receiver.Destination destination) {
+        log.debug("Building SubscriberConfig for destination {}", destination.getId());
         String clientId = firstNonBlank(destination.getClientId(), receiver.getClientId());
         String clientSecret = firstNonBlank(destination.getClientSecret(), receiver.getClientSecret());
         requireText(clientId, describe(destination, "client-id"));
@@ -148,6 +154,7 @@ public final class ApplicationConfigFactory {
      * has to point at a real file on disk.
      */
     private static JWK readJwk(Resource resource, String property) {
+        log.debug("Reading '{}' from {}", property, resource);
         try {
             String json = new String(resource.getContentAsByteArray(), StandardCharsets.UTF_8);
             return JWK.parse(json);

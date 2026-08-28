@@ -13,6 +13,7 @@ import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -40,6 +41,7 @@ import java.util.List;
 @AutoConfiguration(after = FitConnectAutoConfiguration.class)
 @ConditionalOnBean(ApplicationConfig.class)
 @ConditionalOnProperty(prefix = "fitconnect.receiver", name = "enabled", matchIfMissing = true)
+@Slf4j
 public class FitConnectReceiverAutoConfiguration {
 
     // Registered as infrastructure so @AntragEventListener(serviceIds = ...)
@@ -70,12 +72,15 @@ public class FitConnectReceiverAutoConfiguration {
                     "fitconnect.receiver.destinations must be set when fitconnect.receiver.enabled=true");
         }
 
+        log.debug("Configuring {} receiving destination(s)", configuredDestinations.size());
         List<ReceivingDestination> destinations = new ArrayList<>(configuredDestinations.size());
         for (FitConnectProperties.Receiver.Destination destination : configuredDestinations) {
             if (destination.getId() == null) {
                 throw new FitConnectConfigurationException(
                         "Every fitconnect.receiver.destinations entry needs an id");
             }
+            log.debug("Building SubscriberClient for destination {} (callback {})",
+                    destination.getId(), destination.getCallbackSecret() != null ? "enabled" : "disabled");
             SubscriberConfig subscriberConfig =
                     ApplicationConfigFactory.createSubscriberConfig(properties.getReceiver(), destination);
             ApplicationConfig destinationConfig =

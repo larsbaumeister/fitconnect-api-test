@@ -3,8 +3,7 @@ package com.gfi.ozg.fitko.spring.receive;
 import dev.fitko.fitconnect.api.domain.model.submission.SubmissionForPickup;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 
 import java.time.Duration;
@@ -40,9 +39,8 @@ import java.util.stream.Collectors;
  * or failed callback delivery is simply picked up on the next poll cycle
  * instead of being lost.
  */
+@Slf4j
 public class AntragPollingService implements SmartLifecycle {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(AntragPollingService.class);
 
     private final List<ReceivingDestination> destinations;
     private final SubmissionProcessor submissionProcessor;
@@ -73,7 +71,7 @@ public class AntragPollingService implements SmartLifecycle {
         Duration interval = receiverProperties.getPolling().getInterval();
         scheduledTask = scheduler.scheduleWithFixedDelay(
                 this::pollSafely, initialDelay.toMillis(), interval.toMillis(), TimeUnit.MILLISECONDS);
-        LOGGER.info("FIT-Connect polling started for destinations {} (every {})", destinationIds(), interval);
+        log.info("FIT-Connect polling started for destinations {} (every {})", destinationIds(), interval);
     }
 
     @Override
@@ -82,7 +80,7 @@ public class AntragPollingService implements SmartLifecycle {
         scheduledTask = null;
         if (task != null) {
             task.cancel(false);
-            LOGGER.info("FIT-Connect polling stopped for destinations {}", destinationIds());
+            log.info("FIT-Connect polling stopped for destinations {}", destinationIds());
         }
     }
 
@@ -107,29 +105,33 @@ public class AntragPollingService implements SmartLifecycle {
         } catch (RuntimeException e) {
             // Should not normally trigger - poll() already isolates failures
             // per destination - but a scheduled task must never die either way.
-            LOGGER.warn("FIT-Connect poll cycle failed unexpectedly, will retry next cycle", e);
+            log.warn("FIT-Connect poll cycle failed unexpectedly, will retry next cycle", e);
         }
     }
 
     /** Runs exactly one poll cycle synchronously; package-private so tests can trigger it deterministically. */
     void poll() {
         int limit = receiverProperties.getPolling().getLimit();
+        log.debug("Starting poll cycle across {} destination(s)", destinations.size());
         for (ReceivingDestination destination : destinations) {
             pollDestination(destination, limit);
         }
+        log.debug("Poll cycle finished");
     }
 
     private void pollDestination(ReceivingDestination destination, int limit) {
         try {
+            log.debug("Polling destination {} (limit={})", destination.destinationId(), limit);
             List<SubmissionForPickup> available = destination.client()
                     .getAvailableSubmissionsForDestination(destination.destinationId(), 0, limit);
+            log.debug("Destination {} has {} submission(s) available", destination.destinationId(), available.size());
             for (SubmissionForPickup pickup : available) {
                 submissionProcessor.process(destination.client(), pickup.getSubmissionId());
             }
         } catch (RuntimeException e) {
             // A transient failure on this destination must not stop the
             // others in the same cycle from being polled.
-            LOGGER.warn("FIT-Connect poll of destination {} failed, will retry next cycle",
+            log.warn("FIT-Connect poll of destination {} failed, will retry next cycle",
                     destination.destinationId(), e);
         }
     }

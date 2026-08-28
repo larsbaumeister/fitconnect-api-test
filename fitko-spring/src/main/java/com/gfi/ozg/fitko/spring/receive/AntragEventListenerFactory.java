@@ -3,6 +3,7 @@ package com.gfi.ozg.fitko.spring.receive;
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ApplicationListenerMethodAdapter;
@@ -45,6 +46,7 @@ public class AntragEventListenerFactory implements EventListenerFactory, Ordered
         return new ServiceFilteringListenerMethodAdapter(beanName, type, method, serviceIds);
     }
 
+    @Slf4j
     private static final class ServiceFilteringListenerMethodAdapter extends ApplicationListenerMethodAdapter {
 
         private final Set<String> serviceIds;
@@ -75,7 +77,13 @@ public class AntragEventListenerFactory implements EventListenerFactory, Ordered
                 return false;
             }
             PublicService serviceType = antragEvent.getAntrag().getServiceType();
-            return serviceType != null && serviceIds.contains(serviceType.getIdentifier());
+            boolean matches = serviceType != null && serviceIds.contains(serviceType.getIdentifier());
+            if (!matches) {
+                log.debug("Skipping listener for submission {}: service {} not in configured serviceIds {}",
+                        antragEvent.getAntrag().getSubmissionId(),
+                        serviceType != null ? serviceType.getIdentifier() : null, serviceIds);
+            }
+            return matches;
         }
     }
 }
