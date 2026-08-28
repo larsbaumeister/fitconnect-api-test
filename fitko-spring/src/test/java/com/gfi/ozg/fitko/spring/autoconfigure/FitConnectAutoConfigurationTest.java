@@ -3,9 +3,14 @@ package com.gfi.ozg.fitko.spring.autoconfigure;
 import dev.fitko.fitconnect.client.SenderClient;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
+import com.gfi.ozg.fitko.spring.receive.FitConnectReceiverHealthIndicator;
+import com.gfi.ozg.fitko.spring.receive.MicrometerReceivePipelineMetrics;
+import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
 import com.gfi.ozg.fitko.spring.send.AntragSender;
 import com.gfi.ozg.fitko.spring.support.TestJwkKeys;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -29,7 +34,23 @@ class FitConnectAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(
                     FitConnectAutoConfiguration.class,
                     FitConnectSenderAutoConfiguration.class,
-                    FitConnectReceiverAutoConfiguration.class));
+                    FitConnectReceiveMetricsAutoConfiguration.class,
+                    FitConnectReceiverAutoConfiguration.class,
+                    FitConnectReceiveHealthAutoConfiguration.class));
+
+    private String[] receiverOnlyProperties() {
+        Path signingKey = TestJwkKeys.writeSigningKey(tempDir, "signing.json");
+        Path decryptionKey = TestJwkKeys.writeDecryptionKey(tempDir, "decryption.json");
+        return new String[] {
+                "fitconnect.sender.enabled=false",
+                "fitconnect.receiver.client-id=id",
+                "fitconnect.receiver.client-secret=secret",
+                "fitconnect.receiver.destinations[0].id=9f6bb611-df46-494a-9a98-a253f1362dc7",
+                "fitconnect.receiver.destinations[0].signing-key=file:" + signingKey,
+                "fitconnect.receiver.destinations[0].decryption-keys[0]=file:" + decryptionKey,
+                "fitconnect.receiver.polling.enabled=false"
+        };
+    }
 
     @Test
     void backsOffEntirelyWhenDisabled() {
@@ -74,6 +95,40 @@ class FitConnectAutoConfigurationTest {
                         .hasSingleBean(AntragPollingService.class)
                         .doesNotHaveBean(SenderClient.class)
                         .doesNotHaveBean(AntragSender.class));
+    }
+
+    @Test
+    void wiresTheReceivePipelineObservabilityBeansOnTheReceiverSide() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .run(context -> assertThat(context)
+                        .hasSingleBean(ReceivePipelineMetrics.class)
+                        .hasSingleBean(FitConnectReceiverHealthIndicator.class));
+    }
+
+    @Test
+    void receivePipelineMetricsIsMicrometerBackedWhenAMeterRegistryIsPresent() {
+        contextRunner.withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .withPropertyValues(receiverOnlyProperties())
+                .run(context -> assertThat(context.getBean(ReceivePipelineMetrics.class))
+                        .isInstanceOf(MicrometerReceivePipelineMetrics.class));
+    }
+
+    @Test
+    void fallsBackToNoOpMetricsWhenNoMeterRegistryIsAvailable() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .run(context -> assertThat(context.getBean(ReceivePipelineMetrics.class))
+                        .isSameAs(ReceivePipelineMetrics.NOOP));
+    }
+
+    @Test
+    void contributesNoObservabilityBeansWhenTheReceiverIsDisabled() {
+        contextRunner.withPropertyValues(
+                        "fitconnect.receiver.enabled=false",
+                        "fitconnect.sender.client-id=id",
+                        "fitconnect.sender.client-secret=secret")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(ReceivePipelineMetrics.class)
+                        .doesNotHaveBean(FitConnectReceiverHealthIndicator.class));
     }
 
     @Test

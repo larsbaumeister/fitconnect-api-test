@@ -74,6 +74,27 @@
       <artifactId>spring-boot-autoconfigure</artifactId>
     </dependency>
 
+    <!-- Optional: observability for the receive pipeline (see
+         FitConnectReceiveMetricsAutoConfiguration /
+         FitConnectReceiveHealthAutoConfiguration). Both are @ConditionalOnClass
+         gated, so a consumer that doesn't already run Micrometer/Actuator pulls
+         in neither jar and simply gets no meters / no health contributor.
+         micrometer-core gives us MeterRegistry; spring-boot-health gives us
+         the HealthIndicator/Health API (Boot 4 split it out of
+         spring-boot-actuator) plus @ConditionalOnEnabledHealthIndicator - the
+         consuming application's own actuator setup is what actually exposes
+         the endpoint. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-core</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-health</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <!-- Optional: only needed for fitconnect.receiver.callback.enabled=true
          (the webhook endpoint). Not propagated to consumers (optional=true)
          so a polling-only application never pulls in a servlet container -

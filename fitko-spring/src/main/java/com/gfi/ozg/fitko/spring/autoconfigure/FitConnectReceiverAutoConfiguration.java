@@ -10,10 +10,12 @@ import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.config.ApplicationConfigFactory;
 import com.gfi.ozg.fitko.spring.receive.AntragEventListenerFactory;
 import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
+import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -93,8 +95,9 @@ public class FitConnectReceiverAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SubmissionProcessor submissionProcessor(ApplicationEventPublisher eventPublisher, FitConnectProperties properties) {
-        return new SubmissionProcessor(eventPublisher, properties.getReceiver());
+    public SubmissionProcessor submissionProcessor(ApplicationEventPublisher eventPublisher, FitConnectProperties properties,
+                                                    ObjectProvider<ReceivePipelineMetrics> metrics) {
+        return new SubmissionProcessor(eventPublisher, properties.getReceiver(), resolveMetrics(metrics));
     }
 
     // No initMethod/destroyMethod here: AntragPollingService implements
@@ -105,8 +108,16 @@ public class FitConnectReceiverAutoConfiguration {
     @ConditionalOnMissingBean
     public AntragPollingService antragPollingService(List<ReceivingDestination> fitConnectReceivingDestinations,
                                                        SubmissionProcessor submissionProcessor,
-                                                       FitConnectProperties properties) {
-        return new AntragPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver());
+                                                       FitConnectProperties properties,
+                                                       ObjectProvider<ReceivePipelineMetrics> metrics) {
+        return new AntragPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver(),
+                resolveMetrics(metrics));
+    }
+
+    // Micrometer is optional: FitConnectReceiveMetricsAutoConfiguration only
+    // publishes a ReceivePipelineMetrics bean when it's on the classpath.
+    private static ReceivePipelineMetrics resolveMetrics(ObjectProvider<ReceivePipelineMetrics> metrics) {
+        return metrics.getIfAvailable(() -> ReceivePipelineMetrics.NOOP);
     }
 
     private static SubscriberClient createClient(SubscriberClientFactory factory, ApplicationConfig config) {

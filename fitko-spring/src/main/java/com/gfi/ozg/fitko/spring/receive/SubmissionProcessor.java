@@ -21,10 +21,13 @@ public class SubmissionProcessor {
 
     private final ApplicationEventPublisher eventPublisher;
     private final FitConnectProperties.Receiver receiverProperties;
+    private final ReceivePipelineMetrics metrics;
 
-    public SubmissionProcessor(ApplicationEventPublisher eventPublisher, FitConnectProperties.Receiver receiverProperties) {
+    public SubmissionProcessor(ApplicationEventPublisher eventPublisher, FitConnectProperties.Receiver receiverProperties,
+                               ReceivePipelineMetrics metrics) {
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");
+        this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
     }
 
     /**
@@ -32,8 +35,9 @@ public class SubmissionProcessor {
      * applies {@code fitconnect.receiver.default-outcome} if no listener
      * already resolved it. Never throws - a failure is logged and the
      * submission simply stays on the delivery service for a future attempt.
+     * {@code destinationId} is used only to tag metrics.
      */
-    public void process(SubscriberClient client, UUID submissionId) {
+    public void process(UUID destinationId, SubscriberClient client, UUID submissionId) {
         try {
             log.debug("Fetching submission {}", submissionId);
             ReceivedSubmission submission = client.requestSubmission(submissionId);
@@ -47,7 +51,9 @@ public class SubmissionProcessor {
                         submissionId, outcome);
                 antrag.applyIfUnresolved(outcome);
             }
+            metrics.submissionProcessed(destinationId);
         } catch (RuntimeException e) {
+            metrics.submissionFailed(destinationId);
             log.error("Failed to process submission {}, it stays on the delivery service", submissionId, e);
         }
     }

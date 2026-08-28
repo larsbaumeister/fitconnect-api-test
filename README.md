@@ -133,6 +133,16 @@ class LeistungHandlers {
 }
 ```
 
+### Observability
+
+If Micrometer is on the classpath (as it is with `spring-boot-starter-actuator`)
+the poller records `fitconnect.receive.*` meters — poll count/duration and
+per-destination submission counters — and, with Actuator's health API present,
+contributes a `fitConnectReceiver` health indicator that turns `DOWN` when a
+destination hasn't been polled successfully for several intervals. Both are
+opt-in by classpath only and add nothing otherwise. See
+[`docs/configuration.md`](fitko-spring/docs/configuration.md#observability-of-the-receive-pipeline-optional).
+
 ### Receiving via callback (push), instead of or alongside polling
 
 FIT-Connect can push a notification as soon as a submission is available,

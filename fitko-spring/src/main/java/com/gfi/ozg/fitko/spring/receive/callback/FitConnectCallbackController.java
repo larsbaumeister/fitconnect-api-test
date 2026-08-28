@@ -95,7 +95,7 @@ public class FitConnectCallbackController {
             log.debug("Callback for destination {} listed {} submission(s)", destinationId, submissions.size());
             for (SubmissionForPickup submission : submissions) {
                 if (destinationId.equals(submission.getDestinationId())) {
-                    submissionProcessor.process(destination.client(), submission.getSubmissionId());
+                    submissionProcessor.process(destinationId, destination.client(), submission.getSubmissionId());
                 } else {
                     log.warn("Callback for destination {} listed a submission for destination {}, ignored",
                             destinationId, submission.getDestinationId());

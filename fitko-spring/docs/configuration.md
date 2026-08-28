@@ -113,6 +113,40 @@ separate legal entity's own registration).
 A `Duration` property accepts a plain suffixed value (`10s`, `5m`, `500ms`)
 or ISO-8601 (`PT10S`); a bare number is interpreted as milliseconds.
 
+### Observability of the receive pipeline (optional)
+
+The poller only logs per-destination failures at `WARN` and keeps going, so
+"polling is healthy but idle" and "polling has been failing for an hour" look
+the same in the logs. Two optional integrations close that gap; both activate
+only when their library is already on the classpath and contribute nothing
+otherwise.
+
+**Micrometer metrics** — active when `micrometer-core` is present (it is,
+transitively, in any application using `spring-boot-starter-actuator`). All
+are tagged `destination` with the Zustellpunkt id:
+
+| Meter | Type | Meaning |
+|---|---|---|
+| `fitconnect.receive.poll` | timer | Poll cycles per destination, additionally tagged `outcome=success\|failure`. Count + total time. |
+| `fitconnect.receive.submissions.found` | counter | Submissions listed as available by a poll. |
+| `fitconnect.receive.submissions.processed` | counter | Submissions downloaded and published without error. |
+| `fitconnect.receive.submissions.failed` | counter | Submissions whose download/publish threw (left on the delivery service). |
+
+**Health indicator** — active when Spring Boot Actuator's health API
+(`spring-boot-health`) is present. Adds a `fitConnectReceiver` entry to
+`/actuator/health`:
+
+- `UNKNOWN` — `polling.enabled=false` (nothing to assert).
+- `UP` — every destination was polled successfully within
+  `initial-delay + 3 x interval` (or the startup grace period of the same
+  length is still running).
+- `DOWN` — at least one destination has had no successful poll for longer
+  than that window; the `details` name each destination and its last-success
+  timestamp.
+
+Disable it like any indicator with
+`management.health.fit-connect-receiver.enabled=false`.
+
 ## `fitconnect.receiver.callback.*` (optional)
 
 An alternative or complement to polling: instead of waiting for the next
