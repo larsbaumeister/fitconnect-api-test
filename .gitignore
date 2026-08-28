@@ -1,9 +1,26 @@
 target/
 *.class
 dependency-reduced-pom.xml
+
+# IDE settings
 .idea/
 *.iml
+*.ipr
+*.iws
 .vscode/
+.project
+.classpath
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+nbproject/
+nbactions.xml
+nb-configuration.xml
+*.swp
+*~
+.DS_Store
+
 fitconnect-received/
 fitconnect-attachments/
 keys/

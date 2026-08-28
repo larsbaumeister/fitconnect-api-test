@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>dev.fitko.fitconnect.samples</groupId>
+  <groupId>com.gfi.ozg.fitko</groupId>
   <artifactId>fitconnect-samples</artifactId>
   <version>1.0.0</version>
   <packaging>pom</packaging>
@@ -48,7 +48,7 @@
         <version>${fitconnect-sdk.version}</version>
       </dependency>
       <dependency>
-        <groupId>dev.fitko.fitconnect.samples</groupId>
+        <groupId>com.gfi.ozg.fitko</groupId>
         <artifactId>fitconnect-samples-common</artifactId>
         <version>${project.version}</version>
       </dependency>

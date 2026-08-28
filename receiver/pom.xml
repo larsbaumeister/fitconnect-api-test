@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>dev.fitko.fitconnect.samples</groupId>
+    <groupId>com.gfi.ozg.fitko</groupId>
     <artifactId>fitconnect-samples</artifactId>
     <version>1.0.0</version>
   </parent>
@@ -22,12 +22,12 @@
   </description>
 
   <properties>
-    <exec.mainClass>dev.fitko.fitconnect.samples.receiver.ReceiverApp</exec.mainClass>
+    <exec.mainClass>com.gfi.ozg.fitko.receiver.ReceiverApp</exec.mainClass>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>dev.fitko.fitconnect.samples</groupId>
+      <groupId>com.gfi.ozg.fitko</groupId>
       <artifactId>fitconnect-samples-common</artifactId>
     </dependency>
     <dependency>

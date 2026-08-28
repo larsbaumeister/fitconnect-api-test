@@ -1,0 +1,87 @@
+package com.gfi.ozg.fitko.spring.send;
+
+import dev.fitko.fitconnect.api.domain.model.metadata.v2.DataSet;
+import dev.fitko.fitconnect.api.domain.model.reply.replychannel.ReplyChannel;
+import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
+import dev.fitko.fitconnect.api.domain.sender.SendableSubmission;
+import dev.fitko.fitconnect.api.domain.sender.steps.unencrypted.DataStep;
+import dev.fitko.fitconnect.api.domain.sender.steps.unencrypted.OptionalPropertiesStep;
+import dev.fitko.fitconnect.api.domain.sender.steps.unencrypted.ServiceTypeStep;
+import dev.fitko.fitconnect.api.exceptions.client.FitConnectSenderException;
+import dev.fitko.fitconnect.client.SenderClient;
+import com.gfi.ozg.fitko.spring.config.MetadataVersions;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Builds a {@link SendableSubmission} from an {@link AntragToSend} and hands
+ * it to the SDK's {@link SenderClient}. Mirrors the CLI sender sample's
+ * {@code SubmissionSubmitter}.
+ */
+public class DefaultAntragSender implements AntragSender {
+
+    private final SenderClient senderClient;
+    private final UUID defaultDestinationId;
+
+    public DefaultAntragSender(SenderClient senderClient, UUID defaultDestinationId) {
+        this.senderClient = senderClient;
+        this.defaultDestinationId = defaultDestinationId;
+    }
+
+    @Override
+    public SentSubmission send(AntragToSend antrag) {
+        UUID destinationId = resolveDestinationId(antrag);
+        SendableSubmission submission = buildSubmission(destinationId, antrag);
+        try {
+            return senderClient.send(submission);
+        } catch (FitConnectSenderException e) {
+            throw new AntragSendException("Failed to send Antrag to destination " + destinationId, e);
+        }
+    }
+
+    private UUID resolveDestinationId(AntragToSend antrag) {
+        if (antrag.getDestinationId() != null) {
+            return antrag.getDestinationId();
+        }
+        if (defaultDestinationId != null) {
+            return defaultDestinationId;
+        }
+        throw new IllegalStateException(
+                "No destination id: set AntragToSend.builder(...).destinationId(...) or fitconnect.destination-id");
+    }
+
+    private static SendableSubmission buildSubmission(UUID destinationId, AntragToSend antrag) {
+        ServiceTypeStep afterDestination = SendableSubmission.Builder().setDestination(destinationId);
+
+        DataStep afterServiceType = antrag.getServiceRegion() != null
+                ? afterDestination.setServiceTypeWithRegion(antrag.getServiceId(), antrag.getServiceName(), antrag.getServiceRegion())
+                : afterDestination.setServiceType(antrag.getServiceId(), antrag.getServiceName());
+
+        OptionalPropertiesStep step = antrag.getDataFormat() == DataFormat.XML
+                ? afterServiceType.setXmlData(antrag.getData(), antrag.getDataSchema())
+                : afterServiceType.setJsonData(antrag.getData(), antrag.getDataSchema());
+
+        for (AttachmentToSend attachment : antrag.getAttachments()) {
+            step = step.addAttachment(attachment.toAttachment());
+        }
+        if (antrag.getReplyChannelEmail() != null) {
+            step = step.setReplyChannel(ReplyChannel.ofEmail(antrag.getReplyChannelEmail()));
+        }
+        if (antrag.getCaseId() != null) {
+            step = step.setCase(antrag.getCaseId());
+        }
+        if (antrag.getMetadataVersion() != null) {
+            step = step.preferMetadataVersion(MetadataVersions.resolve(antrag.getMetadataVersion()));
+        }
+        if (!antrag.getDataSets().isEmpty()) {
+            List<DataSet> dataSets = antrag.getDataSets().stream()
+                    .map(DataSetToSend::toDataSet)
+                    .collect(Collectors.toList());
+            step = step.setDataSets(dataSets);
+        }
+
+        return step.build();
+    }
+}

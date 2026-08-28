@@ -1,6 +1,7 @@
 # FIT-Connect Java SDK Samples
 
-Two standalone, framework-free command-line clients demonstrating the
+Two standalone, framework-free command-line clients, plus a Spring Boot
+starter, demonstrating the
 [FIT-Connect Java SDK](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/overview):
 
 - **`fitconnect-sender-sample`** — an "Onlinedienst": builds one submission
@@ -9,34 +10,54 @@ Two standalone, framework-free command-line clients demonstrating the
 - **`fitconnect-receiver-sample`** — a "Verwaltungssystem": polls a
   destination for submissions, decrypts and saves them to disk, and
   optionally accepts or rejects them.
+- **`fitconnect-spring-boot-starter`** — the same sending/receiving
+  capabilities as an auto-configured Spring Boot library: an injectable
+  `AntragSender` bean and a Spring application event for every submission
+  received, both configured through regular `application.yml` properties.
+  See [Spring Boot starter](#spring-boot-starter) below.
 
-No application framework, DI container, or CLI-parsing library is used —
-only the FIT-Connect SDK, plain JDK, and a small logging binding
-(`slf4j-simple`) so the SDK's own log output is visible. Every credential,
-key path, and endpoint is passed in as a command line argument; nothing is
-read from a config file.
+The two CLI samples use no application framework, DI container, or
+CLI-parsing library — only the FIT-Connect SDK, plain JDK, and a small
+logging binding (`slf4j-simple`) so the SDK's own log output is visible.
+Every credential, key path, and endpoint is passed in as a command line
+argument; nothing is read from a config file.
+
+`spring-boot-starter/` is a separate, self-contained Maven project living
+alongside the CLI samples in this repository, not a module of their reactor
+and not a dependent of `common` (or vice versa) — it has its own `pom.xml`
+with no `<parent>`, and depends on nothing but the FIT-Connect SDK and
+Spring Boot. `mvn package` at the repo root only builds `common`/`sender`/
+`receiver`; building or publishing the starter is a separate `cd
+spring-boot-starter && mvn package`, and it would still build the same way
+if you copied that one directory out into its own repository.
 
 ## Project layout
 
 ```
 java-samples/
-├── pom.xml                     # reactor + shared dependency/plugin versions
+├── pom.xml                     # sender/receiver reactor + shared dependency/plugin versions
 ├── common/                     # shared CLI-argument parsing & YAML config helpers
 ├── sender/                     # the sending sample (SenderApp)
-└── receiver/                   # the receiving sample (ReceiverApp)
+├── receiver/                   # the receiving sample (ReceiverApp)
+└── spring-boot-starter/        # standalone project - own pom.xml, no shared code, see below
 ```
 
-`common` exists because both apps parse the same set of
+`common` exists because both CLI apps parse the same set of
 environment/HTTP/schema override options and build the same shape of YAML
 config for `ApplicationConfigLoader`; everything sender- or receiver-specific
 (building a `SendableSubmission`, persisting a `ReceivedSubmission`, ...)
-lives in its own module.
+lives in its own module. `spring-boot-starter` does not use `common` - see
+above.
 
-Internally, each app turns its parsed CLI options into the small YAML
+Internally, each CLI app turns its parsed options into the small YAML
 document the SDK already knows how to load
 (`ApplicationConfigLoader.loadConfigFromYamlString`), rather than
 re-implementing the SDK's own environment-default and validation logic with
-a Java config builder.
+a Java config builder. The Spring Boot starter takes the opposite approach
+(see its own section below) - it builds the SDK's `ApplicationConfig`
+directly through its Java builders, since going through `common`'s
+YAML-writing helpers would have reintroduced exactly the shared-code
+dependency it's meant to avoid.
 
 ## Prerequisites
 
@@ -198,6 +219,90 @@ Run with `--help` for the full option list. Highlights:
   `ProblemFactory` for more specific rejection reasons).
 - The same `--auth-base-url`/.../`--disable-auto-reject`/`--local-schema`
   overrides from the sender are available here too.
+
+## Spring Boot starter
+
+`spring-boot-starter/` is a standalone project (own `pom.xml`, no `<parent>`,
+no dependency on `common` or the CLI samples - see "Project layout" above)
+that wraps the same kind of SDK calls the two CLI samples make into a Spring
+Boot 4 auto-configuration: add it as a dependency, set `fitconnect.*`
+properties, and get an injectable `AntragSender` bean plus a Spring
+application event for every submission a background poller downloads — no
+manual `ClientFactory`/`ApplicationConfig` wiring needed.
+
+```bash
+cd spring-boot-starter
+mvn package    # builds and runs its test suite on its own
+```
+
+```xml
+<dependency>
+  <groupId>com.gfi.ozg.fitko</groupId>
+  <artifactId>fitconnect-spring-boot-starter</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+```yaml
+fitconnect:
+  environment: TEST
+  destination-id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+  sender:
+    client-id: ${FITCONNECT_SENDER_CLIENT_ID}
+    client-secret: ${FITCONNECT_SENDER_CLIENT_SECRET}
+  receiver:
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+    signing-key: file:/etc/fitconnect/signing_key.json
+    decryption-keys: file:/etc/fitconnect/decryption_key.json
+```
+
+Sending:
+
+```java
+@Service
+class GewerbeanmeldungService {
+
+    private final AntragSender antragSender;
+
+    GewerbeanmeldungService(AntragSender antragSender) {
+        this.antragSender = antragSender;
+    }
+
+    void submit(String xmlPayload) {
+        AntragToSend antrag = AntragToSend.builder(
+                        "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
+                        DataFormat.XML, xmlPayload, URI.create("https://fimportal.de/.../xzufi"))
+                .replyChannelEmail("applicant@example.com")
+                .build();
+        SentSubmission sent = antragSender.send(antrag);
+    }
+}
+```
+
+Receiving, as a regular Spring event listener:
+
+```java
+@Component
+class GewerbeanmeldungHandler {
+
+    @EventListener
+    void onAntrag(AntragReceivedEvent event) {
+        ReceivedAntrag antrag = event.getAntrag();
+        process(antrag.getDataAsString());
+        antrag.accept(); // or antrag.reject(new DataSchemaViolation()); leave both unset to reconsider it next poll
+    }
+}
+```
+
+Set `fitconnect.sender.enabled=false`/`fitconnect.receiver.enabled=false` if
+an application only does one of the two. Every property is documented on
+`FitConnectProperties` (and shows up as IDE autocomplete, generated by
+`spring-boot-configuration-processor` at build time). The module's tests
+(`spring-boot-starter/src/test`) mock the SDK's `SenderClient`/
+`SubscriberClient` beans directly (`@MockitoBean`) so the whole
+autoconfiguration wiring is exercised through real `@SpringBootTest` contexts
+without any real network calls or key material.
 
 ## What is intentionally out of scope
 
