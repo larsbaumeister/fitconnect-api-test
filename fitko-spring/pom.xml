@@ -29,6 +29,9 @@
     <fitconnect-sdk.version>3.5.0</fitconnect-sdk.version>
     <!-- see https://github.com/spring-projects/spring-boot/releases for newer releases -->
     <spring-boot.version>4.1.1</spring-boot.version>
+    <!-- Matches spring-boot-dependencies' own managed lombok.version; kept
+         explicit here too since annotationProcessorPaths below needs one. -->
+    <lombok.version>1.18.46</lombok.version>
 
     <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
   </properties>
@@ -50,6 +53,16 @@
       <groupId>dev.fitko.fitconnect.sdk</groupId>
       <artifactId>client</artifactId>
       <version>${fitconnect-sdk.version}</version>
+    </dependency>
+
+    <!-- Compile-time only (annotation processor): generates the getters/
+         setters/constructors this starter's classes declare via annotations
+         instead of by hand. Not needed at runtime - Lombok's output is plain
+         bytecode - so it's optional and never propagated to consumers. -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <dependency>
@@ -107,8 +120,19 @@
           <!-- Explicit instead of relying on classpath auto-discovery, which
                isn't reliable across javac versions: this is what actually
                makes spring-boot-configuration-processor generate
-               META-INF/spring-configuration-metadata.json. -->
+               META-INF/spring-configuration-metadata.json - and, since
+               specifying any path switches javac to explicit-processor mode,
+               what makes Lombok run at all. Lombok listed first: it has to
+               generate the real getters/setters before
+               spring-boot-configuration-processor reads them back out
+               (which it supports natively - Lombok-annotated fields' javadoc
+               still becomes each property's description). -->
           <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
+            </path>
             <path>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-configuration-processor</artifactId>

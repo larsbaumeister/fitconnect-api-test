@@ -1,6 +1,8 @@
 package com.gfi.ozg.fitko.spring.receive;
 
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ApplicationListenerMethodAdapter;
@@ -26,6 +28,9 @@ import java.util.Set;
  */
 public class AntragEventListenerFactory implements EventListenerFactory, Ordered {
 
+    /** Lower runs first; only needs to stay below {@code Ordered.LOWEST_PRECEDENCE}, the default factory's order. */
+    @Getter
+    @Setter
     private int order = 0;
 
     @Override
@@ -38,16 +43,6 @@ public class AntragEventListenerFactory implements EventListenerFactory, Ordered
         AntragEventListener annotation = AnnotatedElementUtils.getMergedAnnotation(method, AntragEventListener.class);
         Set<String> serviceIds = Set.of(annotation.serviceIds());
         return new ServiceFilteringListenerMethodAdapter(beanName, type, method, serviceIds);
-    }
-
-    @Override
-    public int getOrder() {
-        return order;
-    }
-
-    /** Lower runs first; only needs to stay below {@code Ordered.LOWEST_PRECEDENCE}, the default factory's order. */
-    public void setOrder(int order) {
-        this.order = order;
     }
 
     private static final class ServiceFilteringListenerMethodAdapter extends ApplicationListenerMethodAdapter {

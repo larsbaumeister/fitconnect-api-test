@@ -1,5 +1,6 @@
 package com.gfi.ozg.fitko.spring.send;
 
+import lombok.Getter;
 import org.springframework.util.Assert;
 
 import java.net.URI;
@@ -23,6 +24,7 @@ import java.util.UUID;
  * SentSubmission sent = antragSender.send(antrag);
  * }</pre>
  */
+@Getter
 public final class AntragToSend {
 
     private final UUID destinationId;
@@ -62,54 +64,6 @@ public final class AntragToSend {
      */
     public static Builder builder(String serviceId, String serviceName, DataFormat dataFormat, String data, URI dataSchema) {
         return new Builder(serviceId, serviceName, dataFormat, data, dataSchema);
-    }
-
-    public UUID getDestinationId() {
-        return destinationId;
-    }
-
-    public String getServiceId() {
-        return serviceId;
-    }
-
-    public String getServiceName() {
-        return serviceName;
-    }
-
-    public String getServiceRegion() {
-        return serviceRegion;
-    }
-
-    public DataFormat getDataFormat() {
-        return dataFormat;
-    }
-
-    public String getData() {
-        return data;
-    }
-
-    public URI getDataSchema() {
-        return dataSchema;
-    }
-
-    public UUID getCaseId() {
-        return caseId;
-    }
-
-    public String getReplyChannelEmail() {
-        return replyChannelEmail;
-    }
-
-    public List<AttachmentToSend> getAttachments() {
-        return attachments;
-    }
-
-    public List<DataSetToSend> getDataSets() {
-        return dataSets;
-    }
-
-    public String getMetadataVersion() {
-        return metadataVersion;
     }
 
     public static final class Builder {

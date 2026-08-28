@@ -6,6 +6,8 @@ import dev.fitko.fitconnect.api.domain.model.event.problems.other.TechnicalError
 import dev.fitko.fitconnect.api.domain.model.metadata.Metadata;
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,14 +26,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * com.gfi.ozg.fitko.spring.FitConnectProperties.Receiver#getDefaultOutcome()}
  * decides what happens to a submission no listener resolved.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public final class ReceivedAntrag {
 
     private final ReceivedSubmission delegate;
     private final AtomicBoolean resolved = new AtomicBoolean(false);
-
-    ReceivedAntrag(ReceivedSubmission delegate) {
-        this.delegate = delegate;
-    }
 
     /** Accepts the submission; it is then deleted from the delivery service. */
     public void accept() {

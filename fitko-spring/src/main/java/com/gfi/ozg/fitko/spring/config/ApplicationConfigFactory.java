@@ -10,6 +10,8 @@ import dev.fitko.fitconnect.api.config.SenderConfig;
 import dev.fitko.fitconnect.api.config.SubscriberConfig;
 import dev.fitko.fitconnect.api.config.http.HttpConfig;
 import dev.fitko.fitconnect.api.config.http.Timeouts;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import org.springframework.core.io.Resource;
 
 import java.io.IOException;
@@ -41,10 +43,8 @@ import java.util.Map;
  * app. {@link com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiverAutoConfiguration}
  * does exactly that, once per {@link FitConnectProperties.Receiver.Destination}.
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ApplicationConfigFactory {
-
-    private ApplicationConfigFactory() {
-    }
 
     public static ApplicationConfig create(FitConnectProperties properties) {
         EnvironmentName environmentName = new EnvironmentName(properties.getEnvironment());

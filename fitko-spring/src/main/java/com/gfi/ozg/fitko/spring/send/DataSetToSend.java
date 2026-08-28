@@ -1,6 +1,8 @@
 package com.gfi.ozg.fitko.spring.send;
 
 import dev.fitko.fitconnect.api.domain.model.metadata.v2.DataSet;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -15,13 +17,10 @@ import java.util.UUID;
  * interprets {@code content}, only transports it, using whatever schema the
  * sender and receiver have agreed on out-of-band.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class DataSetToSend {
 
     private final DataSet dataSet;
-
-    private DataSetToSend(DataSet dataSet) {
-        this.dataSet = dataSet;
-    }
 
     /**
      * @param schemaUri the JSON/XML schema {@code content} conforms to

@@ -1,15 +1,15 @@
 package com.gfi.ozg.fitko.spring.config;
 
 import dev.fitko.fitconnect.api.config.defaults.MetadataVersion;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /** Resolves a version string (e.g. {@code "2.1.0"}) to the matching SDK {@link MetadataVersion} constant. */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class MetadataVersions {
-
-    private MetadataVersions() {
-    }
 
     public static MetadataVersion resolve(String rawVersion) {
         return Arrays.stream(MetadataVersion.values())

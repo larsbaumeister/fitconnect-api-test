@@ -1,6 +1,8 @@
 package com.gfi.ozg.fitko.spring;
 
 import com.gfi.ozg.fitko.spring.receive.DefaultOutcome;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.io.Resource;
 
@@ -32,8 +34,18 @@ import java.util.UUID;
  *         signing-key: file:/etc/fitconnect/ihk-b/signing_key.json
  *         decryption-keys: file:/etc/fitconnect/ihk-b/decryption_key.json
  * }</pre>
+ *
+ * <p>This class and every nested class here is a plain {@code @Getter}/
+ * {@code @Setter} Lombok bean - {@code spring-boot-configuration-processor}
+ * reads Lombok's generated accessors and each field's javadoc the same way
+ * it would hand-written ones, so {@code fitconnect.*} still gets full IDE
+ * autocomplete/descriptions. A {@code final} field (like {@link #http} or
+ * {@link #receiver} below - always-present nested config, never replaced
+ * outright) simply gets no setter generated; Lombok skips those on its own.
  */
 @ConfigurationProperties(prefix = "fitconnect")
+@Getter
+@Setter
 public class FitConnectProperties {
 
     /** Master switch; set to {@code false} to disable this starter entirely. */
@@ -47,68 +59,14 @@ public class FitConnectProperties {
     private final Sender sender = new Sender();
     private final Receiver receiver = new Receiver();
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public String getEnvironment() {
-        return environment;
-    }
-
-    public void setEnvironment(String environment) {
-        this.environment = environment;
-    }
-
-    public Http getHttp() {
-        return http;
-    }
-
-    public BaseUrls getBaseUrls() {
-        return baseUrls;
-    }
-
-    public Sender getSender() {
-        return sender;
-    }
-
-    public Receiver getReceiver() {
-        return receiver;
-    }
-
     /** HTTP client timeouts; unset values keep the SDK's own default (30s). */
+    @Getter
+    @Setter
     public static class Http {
 
         private Duration connectTimeout;
         private Duration readTimeout;
         private Duration writeTimeout;
-
-        public Duration getConnectTimeout() {
-            return connectTimeout;
-        }
-
-        public void setConnectTimeout(Duration connectTimeout) {
-            this.connectTimeout = connectTimeout;
-        }
-
-        public Duration getReadTimeout() {
-            return readTimeout;
-        }
-
-        public void setReadTimeout(Duration readTimeout) {
-            this.readTimeout = readTimeout;
-        }
-
-        public Duration getWriteTimeout() {
-            return writeTimeout;
-        }
-
-        public void setWriteTimeout(Duration writeTimeout) {
-            this.writeTimeout = writeTimeout;
-        }
     }
 
     /**
@@ -116,6 +74,8 @@ public class FitConnectProperties {
      * SDK's built-in defaults for that environment. Mainly useful for
      * pointing the SDK at a local stub server in tests.
      */
+    @Getter
+    @Setter
     public static class BaseUrls {
 
         private String auth;
@@ -123,49 +83,11 @@ public class FitConnectProperties {
         private List<String> submission = new ArrayList<>();
         private String selfServicePortal;
         private String destination;
-
-        public String getAuth() {
-            return auth;
-        }
-
-        public void setAuth(String auth) {
-            this.auth = auth;
-        }
-
-        public String getRouting() {
-            return routing;
-        }
-
-        public void setRouting(String routing) {
-            this.routing = routing;
-        }
-
-        public List<String> getSubmission() {
-            return submission;
-        }
-
-        public void setSubmission(List<String> submission) {
-            this.submission = submission;
-        }
-
-        public String getSelfServicePortal() {
-            return selfServicePortal;
-        }
-
-        public void setSelfServicePortal(String selfServicePortal) {
-            this.selfServicePortal = selfServicePortal;
-        }
-
-        public String getDestination() {
-            return destination;
-        }
-
-        public void setDestination(String destination) {
-            this.destination = destination;
-        }
     }
 
     /** Sending ("Onlinedienst") side: enables the {@code AntragSender} bean. */
+    @Getter
+    @Setter
     public static class Sender {
 
         /** Set to {@code false} if this application only receives, never sends. */
@@ -176,33 +98,11 @@ public class FitConnectProperties {
 
         /** Sender client secret issued by the Self-Service-Portal. */
         private String clientSecret;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public String getClientId() {
-            return clientId;
-        }
-
-        public void setClientId(String clientId) {
-            this.clientId = clientId;
-        }
-
-        public String getClientSecret() {
-            return clientSecret;
-        }
-
-        public void setClientSecret(String clientSecret) {
-            this.clientSecret = clientSecret;
-        }
     }
 
     /** Receiving ("Verwaltungssystem") side: enables the {@code AntragPollingService}. */
+    @Getter
+    @Setter
     public static class Receiver {
 
         /** Set to {@code false} if this application only sends, never receives. */
@@ -250,78 +150,6 @@ public class FitConnectProperties {
         private final Polling polling = new Polling();
         private final Callback callback = new Callback();
 
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public String getClientId() {
-            return clientId;
-        }
-
-        public void setClientId(String clientId) {
-            this.clientId = clientId;
-        }
-
-        public String getClientSecret() {
-            return clientSecret;
-        }
-
-        public void setClientSecret(String clientSecret) {
-            this.clientSecret = clientSecret;
-        }
-
-        public List<Destination> getDestinations() {
-            return destinations;
-        }
-
-        public void setDestinations(List<Destination> destinations) {
-            this.destinations = destinations;
-        }
-
-        public boolean isAllowInsecurePublicKey() {
-            return allowInsecurePublicKey;
-        }
-
-        public void setAllowInsecurePublicKey(boolean allowInsecurePublicKey) {
-            this.allowInsecurePublicKey = allowInsecurePublicKey;
-        }
-
-        public boolean isSkipSubmissionDataValidation() {
-            return skipSubmissionDataValidation;
-        }
-
-        public void setSkipSubmissionDataValidation(boolean skipSubmissionDataValidation) {
-            this.skipSubmissionDataValidation = skipSubmissionDataValidation;
-        }
-
-        public boolean isDisableAutoReject() {
-            return disableAutoReject;
-        }
-
-        public void setDisableAutoReject(boolean disableAutoReject) {
-            this.disableAutoReject = disableAutoReject;
-        }
-
-        public DefaultOutcome getDefaultOutcome() {
-            return defaultOutcome;
-        }
-
-        public void setDefaultOutcome(DefaultOutcome defaultOutcome) {
-            this.defaultOutcome = defaultOutcome;
-        }
-
-        public Polling getPolling() {
-            return polling;
-        }
-
-        public Callback getCallback() {
-            return callback;
-        }
-
         /**
          * One Zustellpunkt (destination) this application receives on, and
          * the credentials/keys it was registered with. {@link #getClientId()}/
@@ -330,6 +158,8 @@ public class FitConnectProperties {
          * them here only if this destination was registered under a
          * different Self-Service-Portal client than the others.
          */
+        @Getter
+        @Setter
         public static class Destination {
 
             /** Zustellpunkt (destination) id to poll/receive callbacks for. */
@@ -357,54 +187,6 @@ public class FitConnectProperties {
              * regardless.
              */
             private String callbackSecret;
-
-            public UUID getId() {
-                return id;
-            }
-
-            public void setId(UUID id) {
-                this.id = id;
-            }
-
-            public String getClientId() {
-                return clientId;
-            }
-
-            public void setClientId(String clientId) {
-                this.clientId = clientId;
-            }
-
-            public String getClientSecret() {
-                return clientSecret;
-            }
-
-            public void setClientSecret(String clientSecret) {
-                this.clientSecret = clientSecret;
-            }
-
-            public Resource getSigningKey() {
-                return signingKey;
-            }
-
-            public void setSigningKey(Resource signingKey) {
-                this.signingKey = signingKey;
-            }
-
-            public List<Resource> getDecryptionKeys() {
-                return decryptionKeys;
-            }
-
-            public void setDecryptionKeys(List<Resource> decryptionKeys) {
-                this.decryptionKeys = decryptionKeys;
-            }
-
-            public String getCallbackSecret() {
-                return callbackSecret;
-            }
-
-            public void setCallbackSecret(String callbackSecret) {
-                this.callbackSecret = callbackSecret;
-            }
         }
 
         /**
@@ -417,6 +199,8 @@ public class FitConnectProperties {
          * (via {@code DestinationClient} - outside this starter's scope, see
          * the README).
          */
+        @Getter
+        @Setter
         public static class Callback {
 
             /**
@@ -436,26 +220,12 @@ public class FitConnectProperties {
              * FIT-Connect.
              */
             private String path = "/fitconnect/callback";
-
-            public boolean isEnabled() {
-                return enabled;
-            }
-
-            public void setEnabled(boolean enabled) {
-                this.enabled = enabled;
-            }
-
-            public String getPath() {
-                return path;
-            }
-
-            public void setPath(String path) {
-                this.path = path;
-            }
         }
     }
 
     /** How often {@code AntragPollingService} checks the destination for new submissions. */
+    @Getter
+    @Setter
     public static class Polling {
 
         /** Set to {@code false} to disable automatic polling (e.g. to only pick up submissions on demand). */
@@ -469,37 +239,5 @@ public class FitConnectProperties {
 
         /** Paging limit when listing available submissions. */
         private int limit = 100;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public Duration getInitialDelay() {
-            return initialDelay;
-        }
-
-        public void setInitialDelay(Duration initialDelay) {
-            this.initialDelay = initialDelay;
-        }
-
-        public Duration getInterval() {
-            return interval;
-        }
-
-        public void setInterval(Duration interval) {
-            this.interval = interval;
-        }
-
-        public int getLimit() {
-            return limit;
-        }
-
-        public void setLimit(int limit) {
-            this.limit = limit;
-        }
     }
 }
