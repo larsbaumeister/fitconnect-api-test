@@ -21,9 +21,9 @@ only if the sender chose to put it there.
   `dataSet` using Governikus's `IdentificationReport` schema. Its `subjectRef` carries
   the pseudonymous subject identifier from whichever trust framework was used.
 
-Our receiver sample already extracts both slots into every `metadata.properties` —
-see `appendAuthenticationInformation` / `appendDataSets` in
-`receiver/.../ReceivedSubmissionWriter.java`.
+Both slots are available off `ReceivedSubmission`/`ReceivedAntrag.getMetadata()` (the
+SDK exposes `dataSets`/`authenticationInformation` as part of the parsed metadata) -
+no extra lookup needed.
 
 **The catch:** attaching an `IdentificationReport` is entirely opt-in by whoever built
 the sending Formular. FIT-Connect doesn't enforce it and doesn't check that it matches
@@ -91,11 +91,11 @@ Same mechanism as user identity in §1 — no dedicated field, it rides along in
 
 **Reading it on receipt:** find the `dataSet` (v2/v3) or `authenticationInformation`
 entry (v1) whose schema matches `IdentificationReport`, parse its JSON `content`, read
-`levelOfAssurance` — already wired up in `ReceivedSubmissionWriter`.
+`levelOfAssurance`.
 
-**Attaching it on send:** use `--data-set` / `--data-set-file` on the sender sample
-(`DataSetSpec`), which auto-computes the required sha512 hash, to attach a real
-`IdentificationReport` payload.
+**Attaching it on send:** build a `DataSetToSend` (fitko-spring) or the SDK's
+`DataSet` type directly - either auto-computes the required sha512 hash - to attach
+a real `IdentificationReport` payload via `AntragToSend.builder(...).dataSet(...)`.
 
 **Same caveat as §1:** it's opt-in by the sender. If a process needs a guaranteed
 minimum LoA — e.g. "must be 2FA-verified" for a given operation — that's a rule you

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Standalone on purpose: no parent pom, no shared code with anything
+       else. `cd fitko-spring && mvn package` works on its own. -->
+  <groupId>com.gfi.ozg.fitko</groupId>
+  <artifactId>fitko-spring</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>fitko-spring</name>
+  <description>
+    Spring Boot auto-configuration for the FIT-Connect Java SDK: sending
+    Anträge via an injectable AntragSender bean, and receiving them as Spring
+    application events, all configured through regular
+    application.properties/application.yml.
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Spring Boot 4 requires Java 17+. -->
+    <maven.compiler.release>17</maven.compiler.release>
+
+    <!-- see https://central.sonatype.com/artifact/dev.fitko.fitconnect.sdk/client
+         and https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/changelog for newer releases -->
+    <fitconnect-sdk.version>3.5.0</fitconnect-sdk.version>
+    <!-- see https://github.com/spring-projects/spring-boot/releases for newer releases -->
+    <spring-boot.version>4.1.1</spring-boot.version>
+
+    <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.fitko.fitconnect.sdk</groupId>
+      <artifactId>client</artifactId>
+      <version>${fitconnect-sdk.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+    </dependency>
+
+    <!-- Generates META-INF/spring-configuration-metadata.json from the
+         @ConfigurationProperties javadoc, so fitconnect.* keys get IDE
+         autocomplete/descriptions in a consuming application. Compile-time
+         only: not needed at runtime by consumers of this starter. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <!-- Explicit instead of relying on classpath auto-discovery, which
+               isn't reliable across javac versions: this is what actually
+               makes spring-boot-configuration-processor generate
+               META-INF/spring-configuration-metadata.json. -->
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-configuration-processor</artifactId>
+              <version>${spring-boot.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

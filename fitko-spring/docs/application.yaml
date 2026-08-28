@@ -1,0 +1,107 @@
+# Sample application.yaml for fitko-spring.
+#
+# Every key lives under the `fitconnect` prefix and binds to
+# `com.gfi.ozg.fitko.spring.FitConnectProperties` - that class's javadoc is
+# the source of truth if this file and the code ever disagree. Everything
+# here also works as environment variables (FITCONNECT_SENDER_CLIENT_ID, ...)
+# or any other Spring property source; YAML is just the easiest to read.
+#
+# Nothing below is required as shown - trim this down to whichever of
+# sending/receiving your application actually does. See docs/configuration.md
+# in this same directory for the full property reference, defaults, and
+# which combinations are required.
+
+fitconnect:
+  # Master switch. false disables sending, receiving, and the SDK client
+  # beans entirely, regardless of the sender/receiver blocks below.
+  enabled: true
+
+  # TEST, STAGE, or PROD - selects the SDK's built-in endpoint defaults.
+  # See https://docs.fitko.de/fit-connect/docs/getting-started/environments
+  environment: TEST
+
+  # --- Sending ("Onlinedienst") -------------------------------------------
+  sender:
+    enabled: true # set false if this application never sends
+    client-id: ${FITCONNECT_SENDER_CLIENT_ID}
+    client-secret: ${FITCONNECT_SENDER_CLIENT_SECRET}
+
+  # --- Receiving ("Verwaltungssystem") ------------------------------------
+  receiver:
+    enabled: true # set false if this application never receives
+
+    # Default subscriber credentials, used by any destination below that
+    # doesn't set its own client-id/client-secret. Most setups only need
+    # this - one Self-Service-Portal registration, polling several
+    # destinations that all belong to it.
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+
+    # Every Zustellpunkt this application polls. One background poller
+    # handles the whole list. A FIT-Connect destination is registered with
+    # its own signing/encryption key pair regardless of which subscriber
+    # client polls it, so each entry carries its own keys - required, even
+    # if two destinations happen to reuse the same key material. At least
+    # one entry is required whenever receiver.enabled is true.
+    destinations:
+      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+        signing-key: file:/etc/fitconnect/ihk-a/signing_key.json
+        decryption-keys:
+          - file:/etc/fitconnect/ihk-a/decryption_key.json
+          # add a second entry here while rotating keys; the incoming JWE's
+          # `kid` picks the right one automatically, no code change needed
+
+      - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
+        signing-key: file:/etc/fitconnect/ihk-b/signing_key.json
+        decryption-keys:
+          - file:/etc/fitconnect/ihk-b/decryption_key.json
+        # Only needed if this destination was registered under a different
+        # Self-Service-Portal client than the shared receiver.client-id/
+        # client-secret above (e.g. a separate legal entity's registration).
+        client-id: ${FITCONNECT_IHK_B_CLIENT_ID}
+        client-secret: ${FITCONNECT_IHK_B_CLIENT_SECRET}
+
+    # What happens to a downloaded submission no @EventListener/
+    # @AntragEventListener explicitly accepted or rejected: LEAVE (default,
+    # safest - retried next poll), ACCEPT, or REJECT (as a generic
+    # TechnicalError).
+    default-outcome: LEAVE
+
+    # Never enable in PROD - accepts a self-signed destination certificate.
+    # Useful against a local/self-hosted TEST environment only.
+    allow-insecure-public-key: false
+
+    # Skip the SDK's local JSON-Schema validation of received submission
+    # data. Leave false unless you have a specific reason to bypass it.
+    skip-submission-data-validation: false
+
+    # By default a submission that fails validation is auto-rejected with a
+    # DataSchemaViolation. Set true to leave it on the delivery service
+    # instead (e.g. to inspect it manually before deciding).
+    disable-auto-reject: false
+
+    polling:
+      enabled: true       # set false to only fetch submissions on demand
+      initial-delay: 5s   # delay after application startup before the first poll
+      interval: 30s       # delay between the end of one poll and the start of the next
+      limit: 100           # paging limit per destination per poll cycle
+
+  # --- HTTP client timeouts (optional) ------------------------------------
+  # Unset values keep the SDK's own default (30s each).
+  http:
+    connect-timeout: 10s
+    read-timeout: 30s
+    write-timeout: 30s
+
+  # --- Endpoint overrides (optional, advanced) ----------------------------
+  # Only needed to point the SDK at a local stub/self-hosted environment
+  # instead of the real TEST/STAGE/PROD endpoints; each override only takes
+  # effect for the `environment` selected above. Leave this whole block out
+  # for a normal setup against FIT-Connect's real environments.
+  # base-urls:
+  #   auth: http://localhost:8080/auth
+  #   routing: http://localhost:8080/routing
+  #   self-service-portal: http://localhost:8080/ssp
+  #   destination: http://localhost:8080/destination
+  #   submission:
+  #     - http://localhost:8080/submission

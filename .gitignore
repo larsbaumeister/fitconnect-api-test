@@ -1,6 +1,5 @@
 target/
 *.class
-dependency-reduced-pom.xml
 
 # IDE settings
 .idea/
@@ -20,8 +19,3 @@ nb-configuration.xml
 *.swp
 *~
 .DS_Store
-
-fitconnect-received/
-fitconnect-attachments/
-keys/
-scripts/.env.local.sh
