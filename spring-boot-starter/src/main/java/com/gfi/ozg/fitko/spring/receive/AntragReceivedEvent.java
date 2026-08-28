@@ -25,6 +25,10 @@ import org.springframework.context.ApplicationEvent;
  * ReceivedAntrag#accept()}/{@link ReceivedAntrag#reject}, {@code
  * fitconnect.receiver.default-outcome} decides what happens to the
  * submission next.
+ *
+ * <p>Use {@link AntragEventListener} instead of {@code @EventListener} to
+ * only receive submissions for specific LeiKa services, e.g. one handler per
+ * Leistung in an application that receives several.
  */
 public class AntragReceivedEvent extends ApplicationEvent {
 

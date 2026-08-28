@@ -6,6 +6,7 @@ import dev.fitko.fitconnect.client.SubscriberClient;
 import dev.fitko.fitconnect.client.bootstrap.ClientFactory;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
+import com.gfi.ozg.fitko.spring.receive.AntragEventListenerFactory;
 import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -27,6 +28,16 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnBean(ApplicationConfig.class)
 @ConditionalOnProperty(prefix = "fitconnect.receiver", name = "enabled", matchIfMissing = true)
 public class FitConnectReceiverAutoConfiguration {
+
+    // Registered as infrastructure so @AntragEventListener(serviceIds = ...)
+    // methods anywhere in the application get filtered per-service; without
+    // it Spring's own DefaultEventListenerFactory would still run them, just
+    // without the filtering (@EventListener is a meta-annotation on it).
+    @Bean
+    @ConditionalOnMissingBean
+    public AntragEventListenerFactory antragEventListenerFactory() {
+        return new AntragEventListenerFactory();
+    }
 
     @Bean
     @ConditionalOnMissingBean
