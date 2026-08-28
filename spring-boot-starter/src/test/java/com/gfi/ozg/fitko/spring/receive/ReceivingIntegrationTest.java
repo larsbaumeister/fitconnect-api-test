@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(classes = ReceivingIntegrationTest.TestConfig.class, properties = {
         "fitconnect.sender.enabled=false",
-        "fitconnect.destination-id=9f6bb611-df46-494a-9a98-a253f1362dc7",
+        "fitconnect.receiver.destination-ids=9f6bb611-df46-494a-9a98-a253f1362dc7,2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234",
         "fitconnect.receiver.client-id=test-client-id",
         "fitconnect.receiver.client-secret=test-client-secret",
         "fitconnect.receiver.polling.enabled=false"
@@ -102,6 +102,7 @@ class ReceivingIntegrationTest {
     }
 
     private static final UUID DESTINATION_ID = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
+    private static final UUID OTHER_DESTINATION_ID = UUID.fromString("2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234");
 
     @MockitoBean
     SubscriberClient subscriberClient;
@@ -121,6 +122,10 @@ class ReceivingIntegrationTest {
         SubmissionForPickup pickup = new SubmissionForPickup(DESTINATION_ID, submissionId, UUID.randomUUID());
         when(subscriberClient.getAvailableSubmissionsForDestination(eq(DESTINATION_ID), anyInt(), anyInt()))
                 .thenReturn(List.of(pickup));
+        // Configured as a second destination-id, but has nothing waiting - the
+        // fitconnect.receiver.destination-ids list is polled regardless.
+        when(subscriberClient.getAvailableSubmissionsForDestination(eq(OTHER_DESTINATION_ID), anyInt(), anyInt()))
+                .thenReturn(List.of());
 
         mockSubmission = mock(ReceivedSubmission.class);
         when(mockSubmission.getSubmissionId()).thenReturn(submissionId);
@@ -164,5 +169,23 @@ class ReceivingIntegrationTest {
         pollingService.poll();
 
         verify(mockSubmission).rejectSubmission(any());
+    }
+
+    @Test
+    void pollsEveryConfiguredDestinationInOneCycle() {
+        pollingService.poll();
+
+        verify(subscriberClient).getAvailableSubmissionsForDestination(eq(DESTINATION_ID), anyInt(), anyInt());
+        verify(subscriberClient).getAvailableSubmissionsForDestination(eq(OTHER_DESTINATION_ID), anyInt(), anyInt());
+    }
+
+    @Test
+    void aFailureOnOneDestinationDoesNotStopTheOthersFromBeingPolled() {
+        when(subscriberClient.getAvailableSubmissionsForDestination(eq(DESTINATION_ID), anyInt(), anyInt()))
+                .thenThrow(new RuntimeException("simulated network failure"));
+
+        pollingService.poll();
+
+        verify(subscriberClient).getAvailableSubmissionsForDestination(eq(OTHER_DESTINATION_ID), anyInt(), anyInt());
     }
 }

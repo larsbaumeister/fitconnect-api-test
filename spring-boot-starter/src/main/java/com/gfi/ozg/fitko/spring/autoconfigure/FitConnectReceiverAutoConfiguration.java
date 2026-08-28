@@ -47,11 +47,11 @@ public class FitConnectReceiverAutoConfiguration {
     public AntragPollingService antragPollingService(SubscriberClient fitConnectSubscriberClient,
                                                        ApplicationEventPublisher eventPublisher,
                                                        FitConnectProperties properties) {
-        if (properties.getDestinationId() == null) {
+        if (properties.getReceiver().getDestinationIds().isEmpty()) {
             throw new FitConnectConfigurationException(
-                    "fitconnect.destination-id must be set when fitconnect.receiver.enabled=true");
+                    "fitconnect.receiver.destination-ids must be set when fitconnect.receiver.enabled=true");
         }
-        return new AntragPollingService(
-                fitConnectSubscriberClient, eventPublisher, properties.getDestinationId(), properties.getReceiver());
+        return new AntragPollingService(fitConnectSubscriberClient, eventPublisher,
+                properties.getReceiver().getDestinationIds(), properties.getReceiver());
     }
 }

@@ -7,8 +7,9 @@ public interface AntragSender {
 
     /**
      * @throws AntragSendException if FIT-Connect rejected or could not deliver the submission
-     * @throws IllegalStateException if {@code antrag} has no destination id and none is configured
-     *         via {@code fitconnect.destination-id}
+     * @throws IllegalStateException if {@code antrag} has no destination id -
+     *         there is no configured fallback, it must be set via {@code
+     *         AntragToSend.builder(...).destinationId(...)}
      */
     SentSubmission send(AntragToSend antrag);
 }

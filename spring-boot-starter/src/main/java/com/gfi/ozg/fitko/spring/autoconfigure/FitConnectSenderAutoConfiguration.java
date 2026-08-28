@@ -5,7 +5,6 @@ import dev.fitko.fitconnect.api.exceptions.client.FitConnectInitialisationExcept
 import dev.fitko.fitconnect.client.SenderClient;
 import dev.fitko.fitconnect.client.bootstrap.ClientFactory;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
-import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.send.AntragSender;
 import com.gfi.ozg.fitko.spring.send.DefaultAntragSender;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -40,7 +39,7 @@ public class FitConnectSenderAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AntragSender antragSender(SenderClient fitConnectSenderClient, FitConnectProperties properties) {
-        return new DefaultAntragSender(fitConnectSenderClient, properties.getDestinationId());
+    public AntragSender antragSender(SenderClient fitConnectSenderClient) {
+        return new DefaultAntragSender(fitConnectSenderClient);
     }
 }

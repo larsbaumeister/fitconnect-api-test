@@ -58,7 +58,7 @@ class FitConnectAutoConfigurationTest {
 
         contextRunner.withPropertyValues(
                         "fitconnect.sender.enabled=false",
-                        "fitconnect.destination-id=9f6bb611-df46-494a-9a98-a253f1362dc7",
+                        "fitconnect.receiver.destination-ids=9f6bb611-df46-494a-9a98-a253f1362dc7,2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234",
                         "fitconnect.receiver.client-id=id",
                         "fitconnect.receiver.client-secret=secret",
                         "fitconnect.receiver.signing-key=file:" + signingKey,
@@ -85,7 +85,7 @@ class FitConnectAutoConfigurationTest {
                         "fitconnect.receiver.polling.enabled=false")
                 .run(context -> assertThat(context).hasFailed()
                         .getFailure().rootCause().isInstanceOf(FitConnectConfigurationException.class)
-                        .hasMessageContaining("fitconnect.destination-id"));
+                        .hasMessageContaining("fitconnect.receiver.destination-ids"));
     }
 
     @Test

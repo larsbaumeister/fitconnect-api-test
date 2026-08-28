@@ -32,8 +32,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(classes = SendingIntegrationTest.TestConfig.class, properties = {
         "fitconnect.receiver.enabled=false",
         "fitconnect.sender.client-id=test-client-id",
-        "fitconnect.sender.client-secret=test-client-secret",
-        "fitconnect.destination-id=9f6bb611-df46-494a-9a98-a253f1362dc7"
+        "fitconnect.sender.client-secret=test-client-secret"
 })
 @DirtiesContext
 class SendingIntegrationTest {
@@ -50,8 +49,8 @@ class SendingIntegrationTest {
     AntragSender antragSender;
 
     @Test
-    void sendsThroughTheConfiguredDestinationByDefault() throws FitConnectSenderException {
-        UUID destinationId = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
+    void sendsToTheGivenDestination() throws FitConnectSenderException {
+        UUID destinationId = UUID.randomUUID();
         UUID submissionId = UUID.randomUUID();
         UUID caseId = UUID.randomUUID();
         when(senderClient.send(any(SendableSubmission.class))).thenReturn(new SentSubmission(destinationId, caseId, submissionId));
@@ -59,29 +58,26 @@ class SendingIntegrationTest {
         AntragToSend antrag = AntragToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, "<test>Hello</test>", URI.create("https://example.org/schema.xsd"))
+                .destinationId(destinationId)
                 .build();
 
         SentSubmission result = antragSender.send(antrag);
 
         assertThat(result.getSubmissionId()).isEqualTo(submissionId);
         assertThat(result.getDestinationId()).isEqualTo(destinationId);
-        verify(senderClient).send(any(SendableSubmission.class));
+        verify(senderClient).send(argThat((SendableSubmission submission) -> submission.getDestinationId().equals(destinationId)));
     }
 
     @Test
-    void perAntragDestinationOverridesTheConfiguredDefault() throws FitConnectSenderException {
-        UUID overrideDestinationId = UUID.randomUUID();
-        when(senderClient.send(any(SendableSubmission.class))).thenReturn(new SentSubmission(overrideDestinationId, UUID.randomUUID(), UUID.randomUUID()));
-
+    void rejectsAnAntragWithNoDestinationId() {
         AntragToSend antrag = AntragToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.JSON, "{}", URI.create("https://example.org/schema.json"))
-                .destinationId(overrideDestinationId)
                 .build();
 
-        antragSender.send(antrag);
-
-        verify(senderClient).send(argThat((SendableSubmission submission) -> submission.getDestinationId().equals(overrideDestinationId)));
+        assertThatThrownBy(() -> antragSender.send(antrag))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("destinationId");
     }
 
     @Test
@@ -91,6 +87,7 @@ class SendingIntegrationTest {
         AntragToSend antrag = AntragToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, "<test/>", URI.create("https://example.org/schema.xsd"))
+                .destinationId(UUID.randomUUID())
                 .build();
 
         assertThatThrownBy(() -> antragSender.send(antrag))

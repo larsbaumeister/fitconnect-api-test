@@ -20,10 +20,15 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Repeatedly polls one destination for available submissions and publishes
- * an {@link AntragReceivedEvent} for each. Runs on its own single-thread
- * scheduler (not the application's {@code TaskScheduler}/{@code @Scheduled}
- * infrastructure), started and stopped along with the Spring lifecycle.
+ * Repeatedly polls one or more destinations for available submissions and
+ * publishes an {@link AntragReceivedEvent} for each. Runs on its own
+ * single-thread scheduler (not the application's {@code
+ * TaskScheduler}/{@code @Scheduled} infrastructure), started and stopped
+ * along with the Spring lifecycle.
+ *
+ * <p>Destinations are polled one after another within a single cycle; a
+ * failure polling one destination (network blip, expired token, ...) is
+ * logged and does not stop the others in the same cycle from being polled.
  */
 public class AntragPollingService implements SmartLifecycle {
 
@@ -31,18 +36,22 @@ public class AntragPollingService implements SmartLifecycle {
 
     private final SubscriberClient subscriberClient;
     private final ApplicationEventPublisher eventPublisher;
-    private final UUID destinationId;
+    private final List<UUID> destinationIds;
     private final FitConnectProperties.Receiver receiverProperties;
     private final ScheduledExecutorService scheduler;
 
     private volatile ScheduledFuture<?> scheduledTask;
 
     public AntragPollingService(SubscriberClient subscriberClient, ApplicationEventPublisher eventPublisher,
-                                 UUID destinationId, FitConnectProperties.Receiver receiverProperties) {
+                                 List<UUID> destinationIds, FitConnectProperties.Receiver receiverProperties) {
         this.subscriberClient = Objects.requireNonNull(subscriberClient, "subscriberClient must not be null");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
-        this.destinationId = Objects.requireNonNull(destinationId,
-                "fitconnect.destination-id must be set to poll for submissions");
+        this.destinationIds = List.copyOf(Objects.requireNonNull(destinationIds,
+                "fitconnect.receiver.destination-ids must be set to poll for submissions"));
+        if (this.destinationIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "fitconnect.receiver.destination-ids must contain at least one destination id");
+        }
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");
         this.scheduler = Executors.newSingleThreadScheduledExecutor(AntragPollingService::newDaemonThread);
     }
@@ -56,7 +65,7 @@ public class AntragPollingService implements SmartLifecycle {
         Duration interval = receiverProperties.getPolling().getInterval();
         scheduledTask = scheduler.scheduleWithFixedDelay(
                 this::pollSafely, initialDelay.toMillis(), interval.toMillis(), TimeUnit.MILLISECONDS);
-        LOGGER.info("FIT-Connect polling started for destination {} (every {})", destinationId, interval);
+        LOGGER.info("FIT-Connect polling started for destinations {} (every {})", destinationIds, interval);
     }
 
     @Override
@@ -65,7 +74,7 @@ public class AntragPollingService implements SmartLifecycle {
         scheduledTask = null;
         if (task != null) {
             task.cancel(false);
-            LOGGER.info("FIT-Connect polling stopped for destination {}", destinationId);
+            LOGGER.info("FIT-Connect polling stopped for destinations {}", destinationIds);
         }
     }
 
@@ -88,19 +97,31 @@ public class AntragPollingService implements SmartLifecycle {
         try {
             poll();
         } catch (RuntimeException e) {
-            // A transient failure (network blip, expired token, ...) must
-            // never kill the scheduled task - there is always a next poll.
-            LOGGER.warn("FIT-Connect poll of destination {} failed, will retry next cycle", destinationId, e);
+            // Should not normally trigger - poll() already isolates failures
+            // per destination - but a scheduled task must never die either way.
+            LOGGER.warn("FIT-Connect poll cycle failed unexpectedly, will retry next cycle", e);
         }
     }
 
     /** Runs exactly one poll cycle synchronously; package-private so tests can trigger it deterministically. */
     void poll() {
         int limit = receiverProperties.getPolling().getLimit();
-        List<SubmissionForPickup> available =
-                subscriberClient.getAvailableSubmissionsForDestination(destinationId, 0, limit);
-        for (SubmissionForPickup pickup : available) {
-            processOne(pickup.getSubmissionId());
+        for (UUID destinationId : destinationIds) {
+            pollDestination(destinationId, limit);
+        }
+    }
+
+    private void pollDestination(UUID destinationId, int limit) {
+        try {
+            List<SubmissionForPickup> available =
+                    subscriberClient.getAvailableSubmissionsForDestination(destinationId, 0, limit);
+            for (SubmissionForPickup pickup : available) {
+                processOne(pickup.getSubmissionId());
+            }
+        } catch (RuntimeException e) {
+            // A transient failure on this destination must not stop the
+            // others in the same cycle from being polled.
+            LOGGER.warn("FIT-Connect poll of destination {} failed, will retry next cycle", destinationId, e);
         }
     }
 

@@ -12,7 +12,6 @@ import org.springframework.core.io.FileSystemResource;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -124,19 +123,5 @@ class ApplicationConfigFactoryTest {
                 .isInstanceOf(FitConnectConfigurationException.class)
                 .hasMessageContaining("fitconnect.receiver.signing-key")
                 .hasMessageContaining("not a valid JWK");
-    }
-
-    @Test
-    void destinationIdIsNotPartOfTheSdkConfig() {
-        // fitconnect.destination-id is consumed directly by this starter
-        // (AntragPollingService / DefaultAntragSender), not by the SDK's own
-        // ApplicationConfig - documented here so that stays a deliberate choice.
-        FitConnectProperties properties = new FitConnectProperties();
-        properties.getReceiver().setEnabled(false);
-        properties.getSender().setClientId("id");
-        properties.getSender().setClientSecret("secret");
-        properties.setDestinationId(UUID.randomUUID());
-
-        assertThat(ApplicationConfigFactory.create(properties)).isNotNull();
     }
 }

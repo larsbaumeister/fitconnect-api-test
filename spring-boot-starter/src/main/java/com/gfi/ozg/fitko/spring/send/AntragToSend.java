@@ -15,6 +15,7 @@ import java.util.UUID;
  * AntragToSend antrag = AntragToSend.builder(
  *         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
  *         DataFormat.XML, xmlPayload, dataSchemaUri)
+ *     .destinationId(destinationId)
  *     .caseId(existingCaseId)
  *     .replyChannelEmail("applicant@example.com")
  *     .attachment(AttachmentToSend.of(pdfResource, "application/pdf"))
@@ -140,7 +141,7 @@ public final class AntragToSend {
             this.dataSchema = dataSchema;
         }
 
-        /** Overrides {@code fitconnect.destination-id} for this one Antrag. */
+        /** Required: the Zustellpunkt (destination) this Antrag is sent to. */
         public Builder destinationId(UUID destinationId) {
             this.destinationId = destinationId;
             return this;

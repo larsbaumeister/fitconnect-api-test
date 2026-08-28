@@ -246,7 +246,6 @@ mvn package    # builds and runs its test suite on its own
 ```yaml
 fitconnect:
   environment: TEST
-  destination-id: 9f6bb611-df46-494a-9a98-a253f1362dc7
   sender:
     client-id: ${FITCONNECT_SENDER_CLIENT_ID}
     client-secret: ${FITCONNECT_SENDER_CLIENT_SECRET}
@@ -255,6 +254,9 @@ fitconnect:
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
     signing-key: file:/etc/fitconnect/signing_key.json
     decryption-keys: file:/etc/fitconnect/decryption_key.json
+    destination-ids: # every destination this application receives on; one poller handles them all
+      - 9f6bb611-df46-494a-9a98-a253f1362dc7
+      - 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
 ```
 
 Sending:
@@ -269,10 +271,11 @@ class GewerbeanmeldungService {
         this.antragSender = antragSender;
     }
 
-    void submit(String xmlPayload) {
+    void submit(UUID destinationId, String xmlPayload) {
         AntragToSend antrag = AntragToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, xmlPayload, URI.create("https://fimportal.de/.../xzufi"))
+                .destinationId(destinationId) // required - no configured fallback
                 .replyChannelEmail("applicant@example.com")
                 .build();
         SentSubmission sent = antragSender.send(antrag);

@@ -18,7 +18,6 @@ import java.util.UUID;
  * <pre>{@code
  * fitconnect:
  *   environment: TEST
- *   destination-id: 9f6bb611-df46-494a-9a98-a253f1362dc7
  *   sender:
  *     client-id: ...
  *     client-secret: ...
@@ -27,6 +26,9 @@ import java.util.UUID;
  *     client-secret: ...
  *     signing-key: file:/etc/fitconnect/signing_key.json
  *     decryption-keys: file:/etc/fitconnect/decryption_key.json
+ *     destination-ids:
+ *       - 9f6bb611-df46-494a-9a98-a253f1362dc7
+ *       - 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
  * }</pre>
  */
 @ConfigurationProperties(prefix = "fitconnect")
@@ -37,14 +39,6 @@ public class FitConnectProperties {
 
     /** FIT-Connect environment: {@code TEST}, {@code STAGE}, {@code PROD}, or a custom environment name. */
     private String environment = "TEST";
-
-    /**
-     * Default Zustellpunkt (destination) id: what {@link
-     * com.gfi.ozg.fitko.spring.receive.AntragPollingService} polls,
-     * and the fallback destination for a sent Antrag that doesn't specify
-     * its own.
-     */
-    private UUID destinationId;
 
     private final Http http = new Http();
     private final BaseUrls baseUrls = new BaseUrls();
@@ -65,14 +59,6 @@ public class FitConnectProperties {
 
     public void setEnvironment(String environment) {
         this.environment = environment;
-    }
-
-    public UUID getDestinationId() {
-        return destinationId;
-    }
-
-    public void setDestinationId(UUID destinationId) {
-        this.destinationId = destinationId;
     }
 
     public Http getHttp() {
@@ -232,6 +218,16 @@ public class FitConnectProperties {
         /** Private decryption key JWKs; more than one supports key rollover. */
         private List<Resource> decryptionKeys = new ArrayList<>();
 
+        /**
+         * Zustellpunkt (destination) ids polled for incoming submissions; at
+         * least one is required whenever {@code fitconnect.receiver.enabled}
+         * is {@code true}. One {@link com.gfi.ozg.fitko.spring.receive.AntragPollingService}
+         * handles the whole list, polling each destination once per cycle -
+         * use this to receive several Leistungen (each registered against
+         * its own destination) in one application.
+         */
+        private List<UUID> destinationIds = new ArrayList<>();
+
         /** Accept self-signed destination certificates. Never enable this in PROD. */
         private boolean allowInsecurePublicKey = false;
 
@@ -284,6 +280,14 @@ public class FitConnectProperties {
 
         public void setDecryptionKeys(List<Resource> decryptionKeys) {
             this.decryptionKeys = decryptionKeys;
+        }
+
+        public List<UUID> getDestinationIds() {
+            return destinationIds;
+        }
+
+        public void setDestinationIds(List<UUID> destinationIds) {
+            this.destinationIds = destinationIds;
         }
 
         public boolean isAllowInsecurePublicKey() {

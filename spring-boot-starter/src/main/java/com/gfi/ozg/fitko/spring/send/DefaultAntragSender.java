@@ -23,16 +23,14 @@ import java.util.stream.Collectors;
 public class DefaultAntragSender implements AntragSender {
 
     private final SenderClient senderClient;
-    private final UUID defaultDestinationId;
 
-    public DefaultAntragSender(SenderClient senderClient, UUID defaultDestinationId) {
+    public DefaultAntragSender(SenderClient senderClient) {
         this.senderClient = senderClient;
-        this.defaultDestinationId = defaultDestinationId;
     }
 
     @Override
     public SentSubmission send(AntragToSend antrag) {
-        UUID destinationId = resolveDestinationId(antrag);
+        UUID destinationId = requireDestinationId(antrag);
         SendableSubmission submission = buildSubmission(destinationId, antrag);
         try {
             return senderClient.send(submission);
@@ -41,15 +39,12 @@ public class DefaultAntragSender implements AntragSender {
         }
     }
 
-    private UUID resolveDestinationId(AntragToSend antrag) {
-        if (antrag.getDestinationId() != null) {
-            return antrag.getDestinationId();
+    private static UUID requireDestinationId(AntragToSend antrag) {
+        if (antrag.getDestinationId() == null) {
+            throw new IllegalStateException(
+                    "No destination id: set AntragToSend.builder(...).destinationId(...) before sending");
         }
-        if (defaultDestinationId != null) {
-            return defaultDestinationId;
-        }
-        throw new IllegalStateException(
-                "No destination id: set AntragToSend.builder(...).destinationId(...) or fitconnect.destination-id");
+        return antrag.getDestinationId();
     }
 
     private static SendableSubmission buildSubmission(UUID destinationId, AntragToSend antrag) {
