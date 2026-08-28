@@ -66,6 +66,7 @@ class SampleApplicationYamlTest {
         assertThat(destinationA.getSigningKey()).isNotNull();
         assertThat(destinationA.getDecryptionKeys()).hasSize(1);
         assertThat(destinationA.getClientId()).isNull(); // falls back to receiver.client-id
+        assertThat(destinationA.getCallbackSecret()).isEqualTo("ihk-a-callback-secret");
 
         FitConnectProperties.Receiver.Destination destinationB = destinations.get(1);
         assertThat(destinationB.getId()).isEqualTo(DESTINATION_B);
@@ -73,11 +74,15 @@ class SampleApplicationYamlTest {
         assertThat(destinationB.getDecryptionKeys()).hasSize(1);
         assertThat(destinationB.getClientId()).isEqualTo("ihk-b-id");
         assertThat(destinationB.getClientSecret()).isEqualTo("ihk-b-secret");
+        assertThat(destinationB.getCallbackSecret()).isNull(); // only reachable via polling
 
         assertThat(properties.getReceiver().getPolling().isEnabled()).isTrue();
         assertThat(properties.getReceiver().getPolling().getInitialDelay()).isEqualTo(Duration.ofSeconds(5));
         assertThat(properties.getReceiver().getPolling().getInterval()).isEqualTo(Duration.ofSeconds(30));
         assertThat(properties.getReceiver().getPolling().getLimit()).isEqualTo(100);
+
+        assertThat(properties.getReceiver().getCallback().isEnabled()).isFalse();
+        assertThat(properties.getReceiver().getCallback().getPath()).isEqualTo("/fitconnect/callback");
 
         assertThat(properties.getHttp().getConnectTimeout()).isEqualTo(Duration.ofSeconds(10));
         assertThat(properties.getHttp().getReadTimeout()).isEqualTo(Duration.ofSeconds(30));
@@ -94,6 +99,7 @@ class SampleApplicationYamlTest {
         fakeEnvVars.put("FITCONNECT_SENDER_CLIENT_SECRET", "sender-secret");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_ID", "receiver-id");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_SECRET", "receiver-secret");
+        fakeEnvVars.put("FITCONNECT_IHK_A_CALLBACK_SECRET", "ihk-a-callback-secret");
         fakeEnvVars.put("FITCONNECT_IHK_B_CLIENT_ID", "ihk-b-id");
         fakeEnvVars.put("FITCONNECT_IHK_B_CLIENT_SECRET", "ihk-b-secret");
 

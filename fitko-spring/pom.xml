@@ -61,6 +61,17 @@
       <artifactId>spring-boot-autoconfigure</artifactId>
     </dependency>
 
+    <!-- Optional: only needed for fitconnect.receiver.callback.enabled=true
+         (the webhook endpoint). Not propagated to consumers (optional=true)
+         so a polling-only application never pulls in a servlet container -
+         FitConnectCallbackAutoConfiguration itself is @ConditionalOnClass
+         gated and simply doesn't activate without it. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <!-- Generates META-INF/spring-configuration-metadata.json from the
          @ConfigurationProperties javadoc, so fitconnect.* keys get IDE
          autocomplete/descriptions in a consuming application. Compile-time
@@ -74,6 +85,14 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- MockMvc support for FitConnectCallbackControllerTest - split out of
+         spring-boot-starter-test in Boot 4's modularized web testing setup. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

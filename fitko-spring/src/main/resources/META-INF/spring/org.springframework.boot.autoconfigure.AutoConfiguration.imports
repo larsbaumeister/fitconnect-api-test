@@ -1,3 +1,4 @@
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectSenderAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiverAutoConfiguration
+com.gfi.ozg.fitko.spring.autoconfigure.FitConnectCallbackAutoConfiguration

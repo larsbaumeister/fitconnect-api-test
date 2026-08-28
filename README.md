@@ -112,7 +112,7 @@ class GewerbeanmeldungHandler {
 }
 ```
 
-An application polling several destinations (`fitconnect.receiver.destination-ids`)
+An application receiving on several destinations (`fitconnect.receiver.destinations`)
 usually wants one handler per Leistung rather than one handler branching on
 the service. Use `@AntragEventListener` instead of `@EventListener` to have a
 method only invoked for specific LeiKa service ids - other listeners still
@@ -133,26 +133,66 @@ class LeistungHandlers {
 }
 ```
 
+### Receiving via callback (push), instead of or alongside polling
+
+FIT-Connect can push a notification as soon as a submission is available,
+instead of your application waiting for the next poll cycle. Set:
+
+```yaml
+fitconnect:
+  receiver:
+    callback:
+      enabled: true
+    destinations:
+      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+        signing-key: file:/etc/fitconnect/signing_key.json
+        decryption-keys:
+          - file:/etc/fitconnect/decryption_key.json
+        callback-secret: ${FITCONNECT_CALLBACK_SECRET} # required for this destination to accept callbacks
+```
+
+...and register `https://your-app-host/fitconnect/callback/<destinationId>`
+as that destination's `Callback` with FIT-Connect (`callbackSecret` matching
+the one above) — a one-time provisioning step via `DestinationClient`,
+outside this starter's scope, same as the rest of destination/routing setup
+(see "What is intentionally out of scope" below). Same
+`AntragReceivedEvent`/`@EventListener`/`@AntragEventListener` handling as
+polling either way - a callback is a notification, not a delivery, so it's
+downloaded and decrypted through the same pipeline. Requires
+`spring-boot-starter-web` on the classpath (an optional dependency of this
+starter); without it, `callback.enabled=true` is simply a no-op. Polling
+keeps running regardless, so a missed or failed callback still gets picked
+up on the next poll cycle. See
+[`docs/configuration.md`](fitko-spring/docs/configuration.md) for the full
+`fitconnect.receiver.callback.*` reference.
+
 ## Testing
 
 The project's own tests (`src/test`) mock the SDK's `SenderClient`/
-`SubscriberClient` beans directly (`@MockitoBean`) so the whole
-autoconfiguration wiring is exercised through real `@SpringBootTest` contexts
-without any real network calls or key material.
+`SubscriberClient` so the whole autoconfiguration wiring is exercised through
+real `@SpringBootTest` contexts without any real network calls or key
+material; the callback endpoint is additionally exercised through real HTTP
+dispatch via `MockMvc`.
 
 ## What is intentionally out of scope
 
 - **Sending replies back** (`SubscriberClient.sendReply`) and the
   **FIT-Connect reply channel** (`ReplyChannel.ofFitConnect`) — see
   [Bidirektionale Kommunikation](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/receiver#bidirektionale-kommunikation).
+- **Reply pickup via callback** — the callback endpoint only processes the
+  `submissions` in a `NewEventsCallback`/`NewSubmissionsCallback` payload; a
+  `NewRepliesCallback`'s `replies` are ignored, consistent with replies being
+  out of scope generally (previous bullet).
 - **Large/chunked attachments** (`Attachment.fromLargeAttachment`) for files
   that don't fit in memory — see
   [Übertragung großer Attachments](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#übertragung-großer-attachments).
-- **Destination/routing lookup** (`RouterClient`, `DestinationClient`) —
-  `fitconnect.receiver.destination-ids`/`AntragToSend.destinationId` are set
-  directly; see
+- **Destination/routing lookup and provisioning** (`RouterClient`,
+  `DestinationClient`) — `fitconnect.receiver.destinations`/
+  `AntragToSend.destinationId` are set directly, and a destination's
+  `Callback` (see "Receiving via callback" above) is registered with
+  FIT-Connect outside this starter; see
   [Routing-Informationen](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#routing-informationen)
-  if you need to resolve one from a LeiKa key and region.
+  if you need to resolve a destination from a LeiKa key and region.
 - **Virus scanning** — defaults to the SDK's no-op scanner; see the
   [SDK overview](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/overview#virenscanner)
   to wire up ClamAV or ICAP.

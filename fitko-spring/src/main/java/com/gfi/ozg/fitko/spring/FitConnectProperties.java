@@ -248,6 +248,7 @@ public class FitConnectProperties {
         private DefaultOutcome defaultOutcome = DefaultOutcome.LEAVE;
 
         private final Polling polling = new Polling();
+        private final Callback callback = new Callback();
 
         public boolean isEnabled() {
             return enabled;
@@ -317,17 +318,21 @@ public class FitConnectProperties {
             return polling;
         }
 
+        public Callback getCallback() {
+            return callback;
+        }
+
         /**
-         * One polled Zustellpunkt (destination) and the credentials/keys it
-         * was registered with. {@link #getClientId()}/{@link #getClientSecret()}
-         * are optional and fall back to {@link Receiver#getClientId()}/{@link
-         * Receiver#getClientSecret()} - set them here only if this
-         * destination was registered under a different Self-Service-Portal
-         * client than the others.
+         * One Zustellpunkt (destination) this application receives on, and
+         * the credentials/keys it was registered with. {@link #getClientId()}/
+         * {@link #getClientSecret()} are optional and fall back to {@link
+         * Receiver#getClientId()}/{@link Receiver#getClientSecret()} - set
+         * them here only if this destination was registered under a
+         * different Self-Service-Portal client than the others.
          */
         public static class Destination {
 
-            /** Zustellpunkt (destination) id to poll. */
+            /** Zustellpunkt (destination) id to poll/receive callbacks for. */
             private UUID id;
 
             /** Overrides {@link Receiver#getClientId()} for this destination. */
@@ -341,6 +346,17 @@ public class FitConnectProperties {
 
             /** This destination's private decryption key JWKs; more than one supports key rollover. */
             private List<Resource> decryptionKeys = new ArrayList<>();
+
+            /**
+             * The secret configured for this destination's callback (the
+             * same value given to FIT-Connect when registering its {@code
+             * Callback} via {@code DestinationClient}). Required for this
+             * destination's submissions to be accepted at {@link
+             * Callback#getPath()}; a destination without one is simply never
+             * reachable through the webhook endpoint, polling still works
+             * regardless.
+             */
+            private String callbackSecret;
 
             public UUID getId() {
                 return id;
@@ -380,6 +396,61 @@ public class FitConnectProperties {
 
             public void setDecryptionKeys(List<Resource> decryptionKeys) {
                 this.decryptionKeys = decryptionKeys;
+            }
+
+            public String getCallbackSecret() {
+                return callbackSecret;
+            }
+
+            public void setCallbackSecret(String callbackSecret) {
+                this.callbackSecret = callbackSecret;
+            }
+        }
+
+        /**
+         * The webhook endpoint FIT-Connect can push new-submission
+         * notifications to, instead of (or alongside) this application
+         * polling for them. Disabled by default; enabling it requires
+         * {@code spring-boot-starter-web} on the classpath (it's an optional
+         * dependency of this starter) and registering the endpoint's URL as
+         * each destination's {@code Callback} with FIT-Connect separately
+         * (via {@code DestinationClient} - outside this starter's scope, see
+         * the README).
+         */
+        public static class Callback {
+
+            /**
+             * Set to {@code true} to expose the webhook endpoint. Every
+             * destination that should actually receive callbacks also needs
+             * its own {@link Destination#getCallbackSecret()} set - polling
+             * keeps working for any destination that doesn't.
+             */
+            private boolean enabled = false;
+
+            /**
+             * Base path the webhook endpoint is mapped to; the destination
+             * id is always appended as its last segment, e.g. {@code
+             * /fitconnect/callback/<destinationId>} with the default value -
+             * that full URL, reachable from the internet, is what gets
+             * registered as the destination's {@code Callback} with
+             * FIT-Connect.
+             */
+            private String path = "/fitconnect/callback";
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public String getPath() {
+                return path;
+            }
+
+            public void setPath(String path) {
+                this.path = path;
             }
         }
     }

@@ -93,6 +93,7 @@ destination, not one shared client for the whole application.
 | `destinations[].decryption-keys` | `List<Resource>` | `[]` | at least one | This destination's private decryption key JWKs. More than one supports key rollover; the incoming JWE's `kid` picks the right one automatically. |
 | `destinations[].client-id` | string | falls back to `receiver.client-id` | only if this destination uses a different Self-Service-Portal registration | |
 | `destinations[].client-secret` | string | falls back to `receiver.client-secret` | same as `client-id` | |
+| `destinations[].callback-secret` | string | — | only if `receiver.callback.enabled=true` and this destination should receive callbacks | See "`fitconnect.receiver.callback.*`" below. |
 
 Most setups only need one Self-Service-Portal registration polling several
 destinations, so `client-id`/`client-secret` are usually left unset per
@@ -111,6 +112,37 @@ separate legal entity's own registration).
 
 A `Duration` property accepts a plain suffixed value (`10s`, `5m`, `500ms`)
 or ISO-8601 (`PT10S`); a bare number is interpreted as milliseconds.
+
+## `fitconnect.receiver.callback.*` (optional)
+
+An alternative or complement to polling: instead of waiting for the next
+poll cycle, FIT-Connect pushes an HTTP POST to a URL you register per
+destination as soon as a new submission is available. Off by default.
+
+| Property | Type | Default | Notes |
+|---|---|---|---|
+| `callback.enabled` | boolean | `false` | Registers the webhook endpoint. Requires `spring-boot-starter-web` on the classpath (an optional dependency of this starter - `FitConnectCallbackAutoConfiguration` simply stays off with no error if it isn't present). |
+| `callback.path` | string | `/fitconnect/callback` | Base path the endpoint is mapped to; the destination id is always appended, e.g. the default value maps `POST /fitconnect/callback/<destinationId>`. |
+
+Turning this on only *exposes* the endpoint - each destination still needs
+its own `destinations[].callback-secret` (see above) before it actually
+accepts callbacks (a request for a destination without one gets `404`). A
+destination is still polled normally regardless of
+whether it also has a callback secret set - the two delivery mechanisms are
+independent, and a missed or failed callback is simply picked up on the next
+poll cycle instead of being lost.
+
+FIT-Connect's callback is a *notification*, not a delivery: the POST body
+just lists which submissions are waiting (same as a poll response), fetched
+and decrypted the normal way through the matching `SubscriberClient` once
+it's authenticated - by the SDK's own HMAC scheme (`SubscriberClient#validateCallback`),
+covering the `callback-authentication`/`callback-timestamp` headers FIT-Connect
+sends with every request. Registering the endpoint's URL as the destination's
+`Callback` with FIT-Connect (via `DestinationClient`, using the same secret
+configured here) is a separate, one-time provisioning step outside this
+starter's scope - same as `RouterClient`/`DestinationClient` generally, see
+["What is intentionally out of scope"](../../README.md#what-is-intentionally-out-of-scope)
+in the main README.
 
 ## `fitconnect.http.*` (optional)
 

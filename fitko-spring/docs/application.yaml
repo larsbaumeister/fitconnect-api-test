@@ -50,6 +50,10 @@ fitconnect:
           - file:/etc/fitconnect/ihk-a/decryption_key.json
           # add a second entry here while rotating keys; the incoming JWE's
           # `kid` picks the right one automatically, no code change needed
+        # Only needed if callback.enabled below is true, and only for a
+        # destination that should actually receive callbacks - the secret
+        # given to FIT-Connect when registering this destination's Callback.
+        callback-secret: ${FITCONNECT_IHK_A_CALLBACK_SECRET}
 
       - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
         signing-key: file:/etc/fitconnect/ihk-b/signing_key.json
@@ -60,6 +64,8 @@ fitconnect:
         # client-secret above (e.g. a separate legal entity's registration).
         client-id: ${FITCONNECT_IHK_B_CLIENT_ID}
         client-secret: ${FITCONNECT_IHK_B_CLIENT_SECRET}
+        # This destination has no callback-secret, so it's only ever reached
+        # through polling, even with callback.enabled: true below.
 
     # What happens to a downloaded submission no @EventListener/
     # @AntragEventListener explicitly accepted or rejected: LEAVE (default,
@@ -85,6 +91,19 @@ fitconnect:
       initial-delay: 5s   # delay after application startup before the first poll
       interval: 30s       # delay between the end of one poll and the start of the next
       limit: 100           # paging limit per destination per poll cycle
+
+    # Optional webhook endpoint FIT-Connect can push new-submission
+    # notifications to, instead of waiting for the next poll. Off by
+    # default - needs spring-boot-starter-web on the classpath (an optional
+    # dependency of this starter), and each destination that should use it
+    # also needs its own callback-secret above (polling keeps working
+    # regardless for any destination that doesn't). The full URL
+    # (https://your-app-host<path>/<destinationId>) still has to be
+    # registered as that destination's Callback with FIT-Connect separately,
+    # via DestinationClient - outside this starter's scope.
+    callback:
+      enabled: false
+      path: /fitconnect/callback
 
   # --- HTTP client timeouts (optional) ------------------------------------
   # Unset values keep the SDK's own default (30s each).
