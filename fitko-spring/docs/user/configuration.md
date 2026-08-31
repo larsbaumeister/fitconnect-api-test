@@ -1,15 +1,14 @@
 # Configuration reference
 
 Every property lives under the `fitconnect` prefix and binds to
-[`FitConnectProperties`](../src/main/java/com/gfi/ozg/fitko/spring/FitConnectProperties.java)
-via Spring Boot's regular relaxed binding — `application.yml`,
+[`FitConnectProperties`](../../src/main/java/com/gfi/ozg/fitko/spring/FitConnectProperties.java)
+via Spring Boot's regular relaxed binding: `application.yml`,
 `application.properties`, environment variables
-(`FITCONNECT_SENDER_CLIENT_ID`, ...), a config server, whatever your
-application already uses. [`application.yaml`](application.yaml) in this
-directory is a full, commented example; this page is the property-by-property
-reference. IDEs also autocomplete every key below directly from
-`META-INF/spring-configuration-metadata.json`, generated at build time from
-the same javadoc.
+(`FITCONNECT_SENDER_CLIENT_ID`, ...), a config server, whatever you already use.
+[`application.yaml`](application.yaml) is a full, commented example; this page
+is the property-by-property reference. IDEs also autocomplete every key below,
+from `META-INF/spring-configuration-metadata.json`, generated at build time
+from the same javadoc.
 
 ## Quick start
 
@@ -175,8 +174,7 @@ sends with every request. Registering the endpoint's URL as the destination's
 `Callback` with FIT-Connect (via `DestinationClient`, using the same secret
 configured here) is a separate, one-time provisioning step outside this
 starter's scope - same as `RouterClient`/`DestinationClient` generally, see
-["What is intentionally out of scope"](../../README.md#what-is-intentionally-out-of-scope)
-in the main README.
+["Out of scope"](guide.md#out-of-scope) in the user guide.
 
 ## `fitconnect.http.*` (optional)
 

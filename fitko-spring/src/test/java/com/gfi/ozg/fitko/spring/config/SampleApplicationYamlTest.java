@@ -22,7 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Binds {@code docs/application.yaml} - the sample config shown in the
+ * Binds {@code docs/user/application.yaml} - the sample config shown in the
  * project's documentation - against the real {@link FitConnectProperties}
  * the same way a consuming application's {@code application.yml} would, so
  * the sample can't silently drift out of sync with the actual property names
@@ -31,14 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SampleApplicationYamlTest {
 
-    private static final Path SAMPLE_YAML = Path.of("docs/application.yaml");
+    private static final Path SAMPLE_YAML = Path.of("docs/user/application.yaml");
     private static final UUID DESTINATION_A = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
     private static final UUID DESTINATION_B = UUID.fromString("2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234");
 
     @Test
     void bindsCleanlyAgainstFitConnectProperties() throws Exception {
         assertThat(Files.exists(SAMPLE_YAML))
-                .as("docs/application.yaml (run tests from the project root)")
+                .as("docs/user/application.yaml (run tests from the project root)")
                 .isTrue();
 
         FitConnectProperties properties = bind(SAMPLE_YAML);
