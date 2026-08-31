@@ -152,16 +152,21 @@ successful poll for `initial-delay + 3 x interval`). Wired by
 `spring-boot-health` added as `optional` deps. Documented in
 `docs/configuration.md`. 13 new tests (58 total, all green).
 
-**M2 — A permanently failing submission fails forever, every cycle, with no backoff or escape.**
-If `requestSubmission` (or a listener) throws for a given submission on every
-attempt — corrupt payload, a bug in a listener, a downstream outage — the poll
-loop re-attempts it every `interval` indefinitely, re-logging the same stack
-trace, and (because processing is inline) burning part of every cycle on it.
-There is no retry ceiling, no exponential backoff, no dead-letter path, no
-"quarantine after N failures" and no way to `reject()` it automatically.
-`default-outcome: REJECT` is all-or-nothing and applies to *unresolved* (not
-*failed*) submissions. *Recommendation:* document the behaviour, and consider a
-`max-attempts` / `on-repeated-failure: leave|reject` option.
+**M2 — ~~A permanently failing submission fails forever, every cycle, with no
+backoff or escape.~~ Addressed (2026-08-31).** `polling.submission-timeout`
+(default 10s, always on) now bounds how long any one submission - including a
+hung network call or a blocking listener bug - may stall the poller before
+being abandoned for the cycle, and the opt-in `polling.retry-cooldown` (unset
+by default, matching the old behaviour) skips re-fetching a submission that
+failed until the configured time has passed instead of retrying it every
+single cycle. See `AntragPollingService.processWithSafeguards`/
+`processWithTimeout` and the two properties' javadoc on
+`FitConnectProperties.Polling`.
+Still true, not addressed: there is no exponential backoff (the cooldown is a
+fixed delay), no true dead-letter path, and no way to auto-`reject()` a
+chronically-failing submission - `retry-cooldown` only spaces out retries, it
+never gives up on one. `default-outcome: REJECT` remains all-or-nothing and
+applies to *unresolved* (not *failed*) submissions.
 
 **M3 — Listener idempotency requirement is under-documented.** See §4 point 2.
 This is a correctness trap for consumers, not just a doc nicety — promote it to a
@@ -277,7 +282,7 @@ notes synchronous execution).
 |---|---|---|
 | Positional 10-arg copy of an SDK value object | `ApplicationConfigFactory.java:89` | Low |
 | `List<T>` published as a bean type (Spring autowiring ambiguity) | `FitConnectReceiverAutoConfiguration.java:63` | Low–Medium |
-| Broad `catch (RuntimeException)` + log-and-swallow with no metric/backoff | `AntragPollingService.java`, `SubmissionProcessor.java` | Medium (observability) |
+| ~~Broad `catch (RuntimeException)` + log-and-swallow with no metric/backoff~~ — metrics existed already; backoff addressed by M2 (2026-08-31) | `AntragPollingService.java`, `SubmissionProcessor.java` | ~~Medium~~ |
 | Inconsistent exception typing (`IllegalArgumentException` vs `FitConnectConfigurationException` vs `AntragSendException`) | `MetadataVersions.java:18`, `DefaultAntragSender.java:43` | Low |
 | Duplicated literal default (`/fitconnect/callback`) | properties vs `@PostMapping` | Low |
 | Hand-rolled hex encoding | `DataSetToSend.java:40` | Nit |

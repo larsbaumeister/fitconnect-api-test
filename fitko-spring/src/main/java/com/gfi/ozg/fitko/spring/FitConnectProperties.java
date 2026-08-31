@@ -239,5 +239,38 @@ public class FitConnectProperties {
 
         /** Paging limit when listing available submissions. */
         private int limit = 100;
+
+        /**
+         * Max time allowed to download, decrypt, publish and let listeners
+         * handle one submission before it's abandoned for this cycle and
+         * counted as a failure (see {@link #getRetryCooldown()}). Guards
+         * against a hung network call or a blocking bug in a listener
+         * stalling the single-threaded poller indefinitely - see "Known
+         * limitations" in {@code docs/developer/architecture.md}.
+         *
+         * <p>Enforced via {@link Thread#interrupt()} on a best-effort basis:
+         * the poller thread moves on to the next submission promptly, but
+         * the abandoned worker thread only actually stops once whatever it
+         * was blocked in honours the interrupt - a listener stuck in a tight
+         * uninterruptible loop keeps its thread alive (leaked) until it
+         * eventually returns on its own.
+         */
+        private Duration submissionTimeout = Duration.ofSeconds(10);
+
+        /**
+         * How long a submission that failed processing (including a {@link
+         * #getSubmissionTimeout()} timeout) is skipped on later poll cycles
+         * before being retried again. {@code null} (the default) disables
+         * this entirely - a failed submission is re-fetched and retried on
+         * every single cycle, exactly as before this option existed.
+         *
+         * <p>Opt in with e.g. {@code 20m}. The submission stays on the
+         * delivery service throughout - nothing is rejected or otherwise
+         * resolved - it's simply not re-fetched until the cooldown elapses,
+         * so one permanently-broken submission stops burning part of every
+         * poll cycle. A submission that succeeds clears its cooldown state
+         * immediately.
+         */
+        private Duration retryCooldown;
     }
 }

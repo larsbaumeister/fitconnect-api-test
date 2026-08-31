@@ -94,11 +94,16 @@ see `code-review.md` M4 before changing that code path.
 
 ## Known limitations
 
-- Polling is sequential and single-threaded, across both destinations and
-  submissions within one — one slow listener stalls the whole cycle. No
-  parallelism knob.
-- No retry ceiling, backoff, or dead-letter path for a submission that fails
-  every cycle — it's retried forever, same stack trace.
+- Polling is sequential and single-threaded across destinations and across
+  submissions within one — no parallelism knob. Two safeguards bound the
+  damage one bad submission can do without changing that model:
+  `polling.submission-timeout` (default 10s, always on) abandons a
+  submission that stalls the cycle instead of hanging it indefinitely, and
+  `polling.retry-cooldown` (unset by default) — when configured — stops a
+  submission that fails every cycle from being retried every single cycle.
+  See `polling.submission-timeout`/`polling.retry-cooldown` in
+  [../user/configuration.md](../user/configuration.md). There is still no
+  way to run independent submissions concurrently within a cycle.
 - One page per destination per cycle (`polling.limit`, default 100); a
   backlog beyond that drains at `limit`/`interval`.
 - `List<ReceivingDestination>` is published as a bean type — a consumer

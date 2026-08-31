@@ -108,9 +108,21 @@ separate legal entity's own registration).
 | `polling.initial-delay` | `Duration` | `5s` | Delay after application startup before the first poll. |
 | `polling.interval` | `Duration` | `30s` | Delay between the end of one poll cycle and the start of the next. |
 | `polling.limit` | int | `100` | Paging limit per destination per poll cycle. |
+| `polling.submission-timeout` | `Duration` | `10s` | Max time to download/decrypt/publish/handle *one* submission before it's abandoned for this cycle and counted as a failure. Always on - protects the single poller thread against a hung network call or a blocking bug in a listener. Enforced via `Thread.interrupt()` on a best-effort basis: a listener stuck in an uninterruptible loop keeps its worker thread alive until it eventually returns on its own. |
+| `polling.retry-cooldown` | `Duration` | unset (off) | Opt-in. When set, a submission that failed (including a `submission-timeout` timeout) is not re-fetched until this much time has passed - instead of being retried on every single cycle. Nothing is rejected; the submission still just sits on the delivery service. Unset (the default) is the original behaviour: every failure is retried next cycle, forever. |
 
 A `Duration` property accepts a plain suffixed value (`10s`, `5m`, `500ms`)
 or ISO-8601 (`PT10S`); a bare number is interpreted as milliseconds.
+
+**Why both exist:** `submission-timeout` bounds how long one submission may
+stall the poller *within* a cycle; `retry-cooldown` bounds how often a
+submission that keeps failing gets retried *across* cycles. A submission
+that's merely slow but eventually succeeds only ever interacts with the
+timeout; a submission that's genuinely broken (corrupt payload, a listener
+bug) hits the timeout or fails fast, then `retry-cooldown` (if configured)
+stops it from re-consuming part of every subsequent cycle. See "Known
+limitations" in `docs/developer/architecture.md` for the underlying
+single-threaded-poller trade-off these mitigate.
 
 ### Observability of the receive pipeline (optional)
 

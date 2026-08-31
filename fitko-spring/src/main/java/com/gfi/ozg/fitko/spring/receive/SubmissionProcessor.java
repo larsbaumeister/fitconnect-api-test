@@ -36,8 +36,12 @@ public class SubmissionProcessor {
      * already resolved it. Never throws - a failure is logged and the
      * submission simply stays on the delivery service for a future attempt.
      * {@code destinationId} is used only to tag metrics.
+     *
+     * @return {@code true} if the submission was downloaded and published
+     * without error, {@code false} if it failed (callers such as {@code
+     * AntragPollingService} use this to drive {@code polling.retry-cooldown}).
      */
-    public void process(UUID destinationId, SubscriberClient client, UUID submissionId) {
+    public boolean process(UUID destinationId, SubscriberClient client, UUID submissionId) {
         try {
             log.debug("Fetching submission {}", submissionId);
             ReceivedSubmission submission = client.requestSubmission(submissionId);
@@ -52,9 +56,11 @@ public class SubmissionProcessor {
                 antrag.applyIfUnresolved(outcome);
             }
             metrics.submissionProcessed(destinationId);
+            return true;
         } catch (RuntimeException e) {
             metrics.submissionFailed(destinationId);
             log.error("Failed to process submission {}, it stays on the delivery service", submissionId, e);
+            return false;
         }
     }
 }

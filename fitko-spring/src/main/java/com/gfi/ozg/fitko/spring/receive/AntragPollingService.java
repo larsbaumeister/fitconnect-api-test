@@ -1,6 +1,7 @@
 package com.gfi.ozg.fitko.spring.receive;
 
 import dev.fitko.fitconnect.api.domain.model.submission.SubmissionForPickup;
+import dev.fitko.fitconnect.client.SubscriberClient;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -14,10 +15,14 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Repeatedly polls one or more destinations for available submissions and
@@ -47,6 +52,15 @@ import java.util.concurrent.TimeUnit;
  * last successful poll per destination is kept for {@code
  * FitConnectReceiverHealthIndicator} - together these let an operator tell
  * "polling is healthy but idle" from "polling has been failing".
+ *
+ * <p>Two independent, opt-in safeguards protect the single poller thread from
+ * one bad submission: {@code polling.submission-timeout} (default 10s, always
+ * on) bounds how long any one submission's download/decrypt/publish/listener
+ * work may run before it's abandoned for this cycle, and {@code
+ * polling.retry-cooldown} (unset by default, i.e. off) skips re-fetching a
+ * submission that failed until the configured time has passed instead of
+ * retrying it every single cycle. See each property's javadoc on {@link
+ * com.gfi.ozg.fitko.spring.FitConnectProperties.Polling}.
  */
 @Slf4j
 public class AntragPollingService implements SmartLifecycle {
@@ -58,6 +72,19 @@ public class AntragPollingService implements SmartLifecycle {
     private final ScheduledExecutorService scheduler;
 
     private final ConcurrentMap<UUID, Instant> lastSuccessfulPollByDestination = new ConcurrentHashMap<>();
+
+    // Only ever holds entries for submissions currently in a failed state:
+    // cleared on success, overwritten on a repeat failure, and (when a
+    // submission's cooldown has elapsed) pruned the next time it's checked -
+    // so it stays bounded by the number of *currently* outstanding failing
+    // submissions, not by everything ever seen.
+    private final ConcurrentMap<UUID, Instant> lastFailureBySubmission = new ConcurrentHashMap<>();
+
+    // Each submission runs on its own short-lived worker thread so poll()
+    // can bound it with a timeout (see processWithTimeout) without touching
+    // the single-threaded polling model otherwise - the poller thread still
+    // waits for one submission before starting the next.
+    private final ExecutorService submissionExecutor;
 
     private volatile ScheduledFuture<?> scheduledTask;
     private volatile Instant startedAt;
@@ -74,6 +101,7 @@ public class AntragPollingService implements SmartLifecycle {
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
         this.scheduler = Executors.newSingleThreadScheduledExecutor(AntragPollingService::newDaemonThread);
+        this.submissionExecutor = Executors.newCachedThreadPool(AntragPollingService::newSubmissionWorkerThread);
     }
 
     @Override
@@ -112,6 +140,7 @@ public class AntragPollingService implements SmartLifecycle {
     @PreDestroy
     void shutdown() {
         scheduler.shutdownNow();
+        submissionExecutor.shutdownNow();
     }
 
     private void pollSafely() {
@@ -144,7 +173,7 @@ public class AntragPollingService implements SmartLifecycle {
             lastSuccessfulPollByDestination.put(destinationId, Instant.now());
             log.debug("Destination {} has {} submission(s) available", destinationId, available.size());
             for (SubmissionForPickup pickup : available) {
-                submissionProcessor.process(destinationId, destination.client(), pickup.getSubmissionId());
+                processWithSafeguards(destinationId, destination.client(), pickup.getSubmissionId());
             }
             metrics.pollCompleted(destinationId, elapsedSince(startNanos), available.size());
         } catch (RuntimeException e) {
@@ -152,6 +181,70 @@ public class AntragPollingService implements SmartLifecycle {
             // A transient failure on this destination must not stop the
             // others in the same cycle from being polled.
             log.warn("FIT-Connect poll of destination {} failed, will retry next cycle", destinationId, e);
+        }
+    }
+
+    /**
+     * Applies {@code polling.retry-cooldown} (skip if this submission failed
+     * too recently), then runs it through {@link #processWithTimeout}, then
+     * updates the cooldown state from the outcome. A no-op wrapper around a
+     * straight call to {@code submissionProcessor.process} whenever {@code
+     * polling.retry-cooldown} is unset - the default, unchanged behaviour.
+     */
+    private void processWithSafeguards(UUID destinationId, SubscriberClient client, UUID submissionId) {
+        Duration cooldown = receiverProperties.getPolling().getRetryCooldown();
+        if (cooldown != null) {
+            Instant lastFailure = lastFailureBySubmission.get(submissionId);
+            if (lastFailure != null) {
+                Instant retryAt = lastFailure.plus(cooldown);
+                if (Instant.now().isBefore(retryAt)) {
+                    log.debug("Submission {} failed before {}, skipping until its {} retry-cooldown elapses at {}",
+                            submissionId, lastFailure, cooldown, retryAt);
+                    return;
+                }
+            }
+        }
+
+        boolean succeeded = processWithTimeout(destinationId, client, submissionId);
+        if (cooldown != null) {
+            if (succeeded) {
+                lastFailureBySubmission.remove(submissionId);
+            } else {
+                lastFailureBySubmission.put(submissionId, Instant.now());
+            }
+        }
+    }
+
+    /**
+     * Runs {@code submissionProcessor.process} on {@link #submissionExecutor}
+     * and waits at most {@code polling.submission-timeout} for it. On timeout
+     * the worker is interrupted (best-effort - see the property's javadoc)
+     * and this returns {@code false} without waiting for it any further, so
+     * one stuck submission never stalls the rest of the cycle.
+     */
+    private boolean processWithTimeout(UUID destinationId, SubscriberClient client, UUID submissionId) {
+        Duration timeout = receiverProperties.getPolling().getSubmissionTimeout();
+        Future<Boolean> future = submissionExecutor.submit(
+                () -> submissionProcessor.process(destinationId, client, submissionId));
+        try {
+            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            metrics.submissionFailed(destinationId);
+            log.error("Processing submission {} exceeded the {} submission-timeout, abandoning it for this cycle",
+                    submissionId, timeout);
+            return false;
+        } catch (ExecutionException e) {
+            // submissionProcessor.process() is documented to never throw, so
+            // this is a defensive fallback, not an expected path.
+            metrics.submissionFailed(destinationId);
+            log.error("Unexpected exception processing submission {}", submissionId, e.getCause());
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            log.warn("Interrupted while waiting for submission {} to be processed", submissionId);
+            return false;
         }
     }
 
@@ -190,6 +283,12 @@ public class AntragPollingService implements SmartLifecycle {
 
     private static Thread newDaemonThread(Runnable runnable) {
         Thread thread = new Thread(runnable, "fitconnect-poller");
+        thread.setDaemon(true);
+        return thread;
+    }
+
+    private static Thread newSubmissionWorkerThread(Runnable runnable) {
+        Thread thread = new Thread(runnable, "fitconnect-submission-worker");
         thread.setDaemon(true);
         return thread;
     }
