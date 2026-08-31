@@ -1,8 +1,8 @@
 package com.example.gewerbeamt.receive;
 
 import com.example.gewerbeamt.Leistung;
-import com.gfi.ozg.fitko.spring.receive.AntragReceivedEvent;
-import com.gfi.ozg.fitko.spring.receive.ReceivedAntrag;
+import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
+import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import dev.fitko.fitconnect.api.domain.model.event.problems.data.DataSchemaViolation;
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,13 +19,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Receive-side tests without a Spring context: build a {@link ReceivedAntrag}
- * test double, wrap it in an {@link AntragReceivedEvent}, and call the
+ * Receive-side tests without a Spring context: build a {@link IncomingSubmission}
+ * test double, wrap it in an {@link SubmissionReceivedEvent}, and call the
  * listener method directly. (fitko-spring's own {@code src/test} shows the
  * full-context variant, driving a mocked SDK {@code SubscriberClient} through
  * a real poll cycle.)
  *
- * <p>{@code ReceivedAntrag} is {@code final}; Mockito's inline mock maker,
+ * <p>{@code IncomingSubmission} is {@code final}; Mockito's inline mock maker,
  * on by default with Spring Boot, mocks it fine.
  */
 class GewerbeanmeldungHandlerTest {
@@ -37,21 +37,21 @@ class GewerbeanmeldungHandlerTest {
             </Gewerbeanmeldung>
             """;
 
-    private ReceivedAntragStore store;
+    private ReceivedSubmissionStore store;
     private GewerbeanmeldungHandler handler;
 
     @BeforeEach
     void setUp() {
-        store = new ReceivedAntragStore();
+        store = new ReceivedSubmissionStore();
         handler = new GewerbeanmeldungHandler(store);
     }
 
     @Test
     void storesAndAcceptsAValidSubmission() {
         UUID submissionId = UUID.randomUUID();
-        ReceivedAntrag antrag = stubAntrag(submissionId, VALID_XML);
+        IncomingSubmission submission = stubSubmission(submissionId, VALID_XML);
 
-        handler.onGewerbeanmeldung(new AntragReceivedEvent(this, antrag));
+        handler.onGewerbeanmeldung(new SubmissionReceivedEvent(this, submission));
 
         assertThat(store.contains(submissionId)).isTrue();
         assertThat(store.all()).singleElement().satisfies(stored -> {
@@ -59,15 +59,15 @@ class GewerbeanmeldungHandlerTest {
             assertThat(stored.serviceId()).isEqualTo(Leistung.GEWERBEANMELDUNG_LEIKA);
             assertThat(stored.data()).contains("Baeckerei Mustermann");
         });
-        verify(antrag).accept();
+        verify(submission).accept();
     }
 
     @Test
     void isIdempotentAcrossRedeliveryOfTheSameSubmission() {
         UUID submissionId = UUID.randomUUID();
 
-        handler.onGewerbeanmeldung(new AntragReceivedEvent(this, stubAntrag(submissionId, VALID_XML)));
-        handler.onGewerbeanmeldung(new AntragReceivedEvent(this, stubAntrag(submissionId, VALID_XML)));
+        handler.onGewerbeanmeldung(new SubmissionReceivedEvent(this, stubSubmission(submissionId, VALID_XML)));
+        handler.onGewerbeanmeldung(new SubmissionReceivedEvent(this, stubSubmission(submissionId, VALID_XML)));
 
         assertThat(store.all()).hasSize(1);
     }
@@ -75,26 +75,26 @@ class GewerbeanmeldungHandlerTest {
     @Test
     void rejectsASubmissionWhosePayloadIsNotAGewerbeanmeldung() {
         UUID submissionId = UUID.randomUUID();
-        ReceivedAntrag antrag = stubAntrag(submissionId, "<SomethingElse/>");
+        IncomingSubmission submission = stubSubmission(submissionId, "<SomethingElse/>");
 
-        handler.onGewerbeanmeldung(new AntragReceivedEvent(this, antrag));
+        handler.onGewerbeanmeldung(new SubmissionReceivedEvent(this, submission));
 
         assertThat(store.contains(submissionId)).isFalse();
-        verify(antrag).reject(any(DataSchemaViolation.class));
-        verify(antrag, never()).accept();
+        verify(submission).reject(any(DataSchemaViolation.class));
+        verify(submission, never()).accept();
     }
 
-    private static ReceivedAntrag stubAntrag(UUID submissionId, String data) {
-        ReceivedAntrag antrag = mock(ReceivedAntrag.class);
-        when(antrag.getSubmissionId()).thenReturn(submissionId);
-        when(antrag.getCaseId()).thenReturn(UUID.randomUUID());
-        when(antrag.getDestinationId()).thenReturn(UUID.randomUUID());
-        when(antrag.getServiceType())
+    private static IncomingSubmission stubSubmission(UUID submissionId, String data) {
+        IncomingSubmission submission = mock(IncomingSubmission.class);
+        when(submission.getSubmissionId()).thenReturn(submissionId);
+        when(submission.getCaseId()).thenReturn(UUID.randomUUID());
+        when(submission.getDestinationId()).thenReturn(UUID.randomUUID());
+        when(submission.getServiceType())
                 .thenReturn(new PublicService(Leistung.GEWERBEANMELDUNG_NAME, Leistung.GEWERBEANMELDUNG_LEIKA));
-        when(antrag.getDataAsString()).thenReturn(data);
-        when(antrag.getDataAsBytes()).thenReturn(data.getBytes());
-        when(antrag.getDataMimeType()).thenReturn("text/xml");
-        when(antrag.getAttachments()).thenReturn(List.of());
-        return antrag;
+        when(submission.getDataAsString()).thenReturn(data);
+        when(submission.getDataAsBytes()).thenReturn(data.getBytes());
+        when(submission.getDataMimeType()).thenReturn("text/xml");
+        when(submission.getAttachments()).thenReturn(List.of());
+        return submission;
     }
 }

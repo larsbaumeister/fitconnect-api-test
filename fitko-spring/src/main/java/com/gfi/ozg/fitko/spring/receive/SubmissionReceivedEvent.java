@@ -3,7 +3,7 @@ package com.gfi.ozg.fitko.spring.receive;
 import org.springframework.context.ApplicationEvent;
 
 /**
- * Published by {@link AntragPollingService} for every submission it downloads.
+ * Published by {@link SubmissionPollingService} for every submission it downloads.
  * Handle it with a regular {@code @EventListener}:
  *
  * <pre>{@code
@@ -11,10 +11,10 @@ import org.springframework.context.ApplicationEvent;
  * class GewerbeanmeldungHandler {
  *
  *     @EventListener
- *     void onAntrag(AntragReceivedEvent event) {
- *         ReceivedAntrag antrag = event.getAntrag();
- *         process(antrag.getDataAsString());
- *         antrag.accept();
+ *     void onSubmission(SubmissionReceivedEvent event) {
+ *         IncomingSubmission submission = event.getSubmission();
+ *         process(submission.getDataAsString());
+ *         submission.accept();
  *     }
  * }
  * }</pre>
@@ -22,26 +22,26 @@ import org.springframework.context.ApplicationEvent;
  * <p>Listener methods run synchronously on the polling thread, in
  * registration order, before the next submission is fetched; make a listener
  * {@code @Async} if it does non-trivial work. If no listener calls {@link
- * ReceivedAntrag#accept()}/{@link ReceivedAntrag#reject}, {@code
+ * IncomingSubmission#accept()}/{@link IncomingSubmission#reject}, {@code
  * fitconnect.receiver.default-outcome} decides what happens to the
  * submission next.
  *
- * <p>Use {@link AntragEventListener} instead of {@code @EventListener} to
+ * <p>Use {@link SubmissionEventListener} instead of {@code @EventListener} to
  * only receive submissions for specific LeiKa services, e.g. one handler per
  * Leistung in an application that receives several.
  */
-public class AntragReceivedEvent extends ApplicationEvent {
+public class SubmissionReceivedEvent extends ApplicationEvent {
 
     private static final long serialVersionUID = 1L;
 
-    private final transient ReceivedAntrag antrag;
+    private final transient IncomingSubmission submission;
 
-    public AntragReceivedEvent(Object source, ReceivedAntrag antrag) {
+    public SubmissionReceivedEvent(Object source, IncomingSubmission submission) {
         super(source);
-        this.antrag = antrag;
+        this.submission = submission;
     }
 
-    public ReceivedAntrag getAntrag() {
-        return antrag;
+    public IncomingSubmission getSubmission() {
+        return submission;
     }
 }

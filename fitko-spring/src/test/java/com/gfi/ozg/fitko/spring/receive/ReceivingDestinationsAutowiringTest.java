@@ -39,7 +39,7 @@ import static org.mockito.Mockito.mock;
  * ReceivingDestination} bean alongside the two properly configured
  * destinations - exactly the scenario that used to make {@code
  * List<ReceivingDestination>} injection points silently see only that one
- * stray bean. Asserting {@link AntragPollingService#destinationIds()} still
+ * stray bean. Asserting {@link SubmissionPollingService#destinationIds()} still
  * lists both configured destinations (not the stray one) proves {@link
  * ReceivingDestinations} closes it.
  */
@@ -101,7 +101,7 @@ class ReceivingDestinationsAutowiringTest {
     }
 
     @Autowired
-    AntragPollingService pollingService;
+    SubmissionPollingService pollingService;
 
     @Test
     void aStrayReceivingDestinationBeanDoesNotDisplaceTheConfiguredDestinations() {

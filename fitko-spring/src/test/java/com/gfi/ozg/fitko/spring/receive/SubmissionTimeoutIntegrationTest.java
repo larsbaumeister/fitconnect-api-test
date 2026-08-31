@@ -78,8 +78,8 @@ class SubmissionTimeoutIntegrationTest {
     static class TestConfig {
 
         @Bean
-        SlowingAntragListener slowingAntragListener() {
-            return new SlowingAntragListener();
+        SlowingSubmissionListener slowingSubmissionListener() {
+            return new SlowingSubmissionListener();
         }
 
         @Bean
@@ -89,14 +89,14 @@ class SubmissionTimeoutIntegrationTest {
     }
 
     /** Sleeps well past the configured timeout for one designated submission id; records every id it actually finishes handling. */
-    static class SlowingAntragListener {
+    static class SlowingSubmissionListener {
 
         volatile UUID slowSubmissionId;
         final List<UUID> handled = new CopyOnWriteArrayList<>();
 
         @EventListener
-        void onAntrag(AntragReceivedEvent event) throws InterruptedException {
-            UUID submissionId = event.getAntrag().getSubmissionId();
+        void onSubmission(SubmissionReceivedEvent event) throws InterruptedException {
+            UUID submissionId = event.getSubmission().getSubmissionId();
             if (submissionId.equals(slowSubmissionId)) {
                 Thread.sleep(2000); // far beyond the 100ms submission-timeout configured above
             }
@@ -105,10 +105,10 @@ class SubmissionTimeoutIntegrationTest {
     }
 
     @Autowired
-    AntragPollingService pollingService;
+    SubmissionPollingService pollingService;
 
     @Autowired
-    SlowingAntragListener listener;
+    SlowingSubmissionListener listener;
 
     private UUID slowSubmissionId;
     private UUID fastSubmissionId;

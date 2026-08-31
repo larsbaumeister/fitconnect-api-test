@@ -35,7 +35,7 @@ import java.util.concurrent.TimeoutException;
  * is registered with its own signing/decryption keys, and the SDK bakes
  * exactly one key set into each client instance, so two destinations with
  * different keys need two separate clients even though one {@code
- * AntragPollingService} still polls both. Destinations are polled one after
+ * SubmissionPollingService} still polls both. Destinations are polled one after
  * another within a single cycle; a failure polling one (network blip,
  * expired token, ...) is logged and does not stop the others in the same
  * cycle from being polled.
@@ -63,7 +63,7 @@ import java.util.concurrent.TimeoutException;
  * com.gfi.ozg.fitko.spring.FitConnectProperties.Polling}.
  */
 @Slf4j
-public class AntragPollingService implements SmartLifecycle {
+public class SubmissionPollingService implements SmartLifecycle {
 
     private final List<ReceivingDestination> destinations;
     private final SubmissionProcessor submissionProcessor;
@@ -89,7 +89,7 @@ public class AntragPollingService implements SmartLifecycle {
     private volatile ScheduledFuture<?> scheduledTask;
     private volatile Instant startedAt;
 
-    public AntragPollingService(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
+    public SubmissionPollingService(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
                                  FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics) {
         this.destinations = Objects.requireNonNull(destinations,
                 "fitconnect.receiver.destinations must be set to poll for submissions").all();
@@ -100,8 +100,8 @@ public class AntragPollingService implements SmartLifecycle {
         this.submissionProcessor = Objects.requireNonNull(submissionProcessor, "submissionProcessor must not be null");
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(AntragPollingService::newDaemonThread);
-        this.submissionExecutor = Executors.newCachedThreadPool(AntragPollingService::newSubmissionWorkerThread);
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(SubmissionPollingService::newDaemonThread);
+        this.submissionExecutor = Executors.newCachedThreadPool(SubmissionPollingService::newSubmissionWorkerThread);
     }
 
     @Override

@@ -15,19 +15,19 @@ import java.lang.reflect.Method;
 import java.util.Set;
 
 /**
- * Supports {@link AntragEventListener}. Delegates to the same {@link
+ * Supports {@link SubmissionEventListener}. Delegates to the same {@link
  * ApplicationListenerMethodAdapter} a plain {@code @EventListener} method
  * gets, wrapped so a method with a non-empty {@link
- * AntragEventListener#serviceIds()} is only invoked for a submission whose
+ * SubmissionEventListener#serviceIds()} is only invoked for a submission whose
  * LeiKa service identifier is in that list - every other submission is
  * skipped without invoking the method at all, exactly as if the listener had
  * declared an {@code @EventListener(condition = ...)} for it.
  *
  * <p>Ordered ahead of Spring's {@code DefaultEventListenerFactory} (which
  * would otherwise also claim these methods, since it matches everything) so
- * {@code @AntragEventListener} methods are routed here.
+ * {@code @SubmissionEventListener} methods are routed here.
  */
-public class AntragEventListenerFactory implements EventListenerFactory, Ordered {
+public class SubmissionEventListenerFactory implements EventListenerFactory, Ordered {
 
     /** Lower runs first; only needs to stay below {@code Ordered.LOWEST_PRECEDENCE}, the default factory's order. */
     @Getter
@@ -36,12 +36,12 @@ public class AntragEventListenerFactory implements EventListenerFactory, Ordered
 
     @Override
     public boolean supportsMethod(Method method) {
-        return AnnotatedElementUtils.hasAnnotation(method, AntragEventListener.class);
+        return AnnotatedElementUtils.hasAnnotation(method, SubmissionEventListener.class);
     }
 
     @Override
     public ApplicationListener<?> createApplicationListener(String beanName, Class<?> type, Method method) {
-        AntragEventListener annotation = AnnotatedElementUtils.getMergedAnnotation(method, AntragEventListener.class);
+        SubmissionEventListener annotation = AnnotatedElementUtils.getMergedAnnotation(method, SubmissionEventListener.class);
         Set<String> serviceIds = Set.of(annotation.serviceIds());
         return new ServiceFilteringListenerMethodAdapter(beanName, type, method, serviceIds);
     }
@@ -73,14 +73,14 @@ public class AntragEventListenerFactory implements EventListenerFactory, Ordered
             if (serviceIds.isEmpty()) {
                 return true;
             }
-            if (!(event instanceof AntragReceivedEvent antragEvent)) {
+            if (!(event instanceof SubmissionReceivedEvent submissionEvent)) {
                 return false;
             }
-            PublicService serviceType = antragEvent.getAntrag().getServiceType();
+            PublicService serviceType = submissionEvent.getSubmission().getServiceType();
             boolean matches = serviceType != null && serviceIds.contains(serviceType.getIdentifier());
             if (!matches) {
                 log.debug("Skipping listener for submission {}: service {} not in configured serviceIds {}",
-                        antragEvent.getAntrag().getSubmissionId(),
+                        submissionEvent.getSubmission().getSubmissionId(),
                         serviceType != null ? serviceType.getIdentifier() : null, serviceIds);
             }
             return matches;

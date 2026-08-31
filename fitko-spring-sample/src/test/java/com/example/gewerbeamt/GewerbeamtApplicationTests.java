@@ -1,7 +1,7 @@
 package com.example.gewerbeamt;
 
 import com.example.gewerbeamt.send.GewerbeanmeldungService;
-import com.gfi.ozg.fitko.spring.send.AntragSender;
+import com.gfi.ozg.fitko.spring.send.SubmissionSender;
 import dev.fitko.fitconnect.client.SenderClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The context starts with {@code fitko-spring} on the classpath and wires an
- * {@link AntragSender} into {@link GewerbeanmeldungService}.
+ * {@link SubmissionSender} into {@link GewerbeanmeldungService}.
  *
  * <p>Receiving is switched off here so the test needs no destination keys;
  * the SDK's {@link SenderClient} is replaced by a Mockito mock so nothing
@@ -35,14 +35,14 @@ class GewerbeamtApplicationTests {
     SenderClient senderClient;
 
     @Autowired
-    AntragSender antragSender;
+    SubmissionSender submissionSender;
 
     @Autowired
     GewerbeanmeldungService gewerbeanmeldungService;
 
     @Test
     void contextLoadsAndWiresTheStarterBeans() {
-        assertThat(antragSender).isNotNull();
+        assertThat(submissionSender).isNotNull();
         assertThat(gewerbeanmeldungService).isNotNull();
     }
 }

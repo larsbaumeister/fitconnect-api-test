@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 /**
  * Receives FIT-Connect's push notification for new submissions - a
  * destination's registered {@code Callback} - as an alternative or
- * complement to {@link com.gfi.ozg.fitko.spring.receive.AntragPollingService}
+ * complement to {@link com.gfi.ozg.fitko.spring.receive.SubmissionPollingService}
  * polling. Registered only when {@code fitconnect.receiver.callback.enabled}
  * is {@code true} and {@code spring-boot-starter-web} is on the classpath -
  * see {@code FitConnectCallbackAutoConfiguration}.

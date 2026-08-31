@@ -6,7 +6,7 @@ import java.util.UUID;
 /**
  * What this sample keeps out of an incoming Gewerbeanmeldung. A real system
  * would map the submission's XML/JSON data onto its own domain model and
- * persist it; here it is just a record in an in-memory {@link ReceivedAntragStore}.
+ * persist it; here it is just a record in an in-memory {@link ReceivedSubmissionStore}.
  *
  * @param submissionId FIT-Connect submission id - the natural idempotency key
  * @param caseId       FIT-Connect case id (a case can span several submissions)

@@ -11,11 +11,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * one runnable app shows both integration points:
  * <ul>
  *   <li><b>Sending</b> ("Onlinedienst"): {@link com.example.gewerbeamt.send}
- *       - a REST call builds an {@code AntragToSend} and hands it to the
- *       injected {@code AntragSender}.</li>
+ *       - a REST call builds an {@code SubmissionToSend} and hands it to the
+ *       injected {@code SubmissionSender}.</li>
  *   <li><b>Receiving</b> ("Verwaltungssystem"): {@link com.example.gewerbeamt.receive}
  *       - a background poller downloads submissions and publishes them as
- *       {@code AntragReceivedEvent}s that {@code @AntragEventListener}
+ *       {@code SubmissionReceivedEvent}s that {@code @SubmissionEventListener}
  *       methods handle.</li>
  * </ul>
  *

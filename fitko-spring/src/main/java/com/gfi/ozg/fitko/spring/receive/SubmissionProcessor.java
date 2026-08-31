@@ -10,8 +10,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Downloads one submission and publishes an {@link AntragReceivedEvent} for
- * it - the one piece of logic {@link AntragPollingService} (finds out about
+ * Downloads one submission and publishes an {@link SubmissionReceivedEvent} for
+ * it - the one piece of logic {@link SubmissionPollingService} (finds out about
  * a submission via polling) and the callback webhook endpoint (finds out via
  * an inbound HTTP notification) both need identically, once a submission id
  * and the {@link SubscriberClient} that owns its destination are known.
@@ -39,21 +39,21 @@ public class SubmissionProcessor {
      *
      * @return {@code true} if the submission was downloaded and published
      * without error, {@code false} if it failed (callers such as {@code
-     * AntragPollingService} use this to drive {@code polling.retry-cooldown}).
+     * SubmissionPollingService} use this to drive {@code polling.retry-cooldown}).
      */
     public boolean process(UUID destinationId, SubscriberClient client, UUID submissionId) {
         try {
             log.debug("Fetching submission {}", submissionId);
             ReceivedSubmission submission = client.requestSubmission(submissionId);
-            ReceivedAntrag antrag = new ReceivedAntrag(submission);
-            eventPublisher.publishEvent(new AntragReceivedEvent(this, antrag));
-            if (antrag.isResolved()) {
+            IncomingSubmission incoming = new IncomingSubmission(submission);
+            eventPublisher.publishEvent(new SubmissionReceivedEvent(this, incoming));
+            if (incoming.isResolved()) {
                 log.debug("Submission {} was accepted/rejected by a listener", submissionId);
             } else {
                 DefaultOutcome outcome = receiverProperties.getDefaultOutcome();
                 log.debug("Submission {} was not resolved by any listener, applying default outcome {}",
                         submissionId, outcome);
-                antrag.applyIfUnresolved(outcome);
+                incoming.applyIfUnresolved(outcome);
             }
             metrics.submissionProcessed(destinationId);
             return true;

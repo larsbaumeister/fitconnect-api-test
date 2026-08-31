@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 /**
- * Callback surface the receive pipeline ({@link AntragPollingService},
+ * Callback surface the receive pipeline ({@link SubmissionPollingService},
  * {@link SubmissionProcessor}) invokes so operational metrics can be recorded
  * without either class depending on Micrometer directly - Micrometer is an
  * optional dependency of this starter, so the always-loaded receive classes

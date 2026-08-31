@@ -14,7 +14,7 @@ import java.util.UUID;
  * endpoint - the secret used to validate an incoming callback claims to be
  * for it.
  *
- * <p>Shared between {@link AntragPollingService} and {@code
+ * <p>Shared between {@link SubmissionPollingService} and {@code
  * FitConnectCallbackController}: both deliver submissions for the same set
  * of destinations, just through different triggers (a poll cycle vs. an
  * inbound HTTP callback).

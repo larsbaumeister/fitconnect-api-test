@@ -28,7 +28,7 @@ spring:
 
 fitconnect:
   # Master switch. false disables sending, receiving and all SDK client
-  # beans. NOTE: with it off there is no AntragSender bean, so this
+  # beans. NOTE: with it off there is no SubmissionSender bean, so this
   # particular sample (which injects one) will not start - it is here for
   # completeness, not as a "run with no setup" mode.
   enabled: true

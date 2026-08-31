@@ -5,8 +5,8 @@ import dev.fitko.fitconnect.api.exceptions.client.FitConnectInitialisationExcept
 import dev.fitko.fitconnect.client.SenderClient;
 import dev.fitko.fitconnect.client.bootstrap.ClientFactory;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
-import com.gfi.ozg.fitko.spring.send.AntragSender;
-import com.gfi.ozg.fitko.spring.send.DefaultAntragSender;
+import com.gfi.ozg.fitko.spring.send.SubmissionSender;
+import com.gfi.ozg.fitko.spring.send.DefaultSubmissionSender;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -14,7 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Sending ("Onlinedienst") side: a {@link SenderClient} and the {@link AntragSender} bean built on top of it.
+ * Sending ("Onlinedienst") side: a {@link SenderClient} and the {@link SubmissionSender} bean built on top of it.
  *
  * <p>Conditional on an {@link ApplicationConfig} bean existing (not directly
  * on {@code fitconnect.enabled}) so this backs off automatically whenever
@@ -39,7 +39,7 @@ public class FitConnectSenderAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AntragSender antragSender(SenderClient fitConnectSenderClient) {
-        return new DefaultAntragSender(fitConnectSenderClient);
+    public SubmissionSender submissionSender(SenderClient fitConnectSenderClient) {
+        return new DefaultSubmissionSender(fitConnectSenderClient);
     }
 }

@@ -60,8 +60,8 @@ blocks, both left `enabled: true` (the default).
 | `sender.client-secret` | string | — | `sender.enabled=true` | |
 
 There is no configured fallback destination for sending — every
-`AntragToSend.builder(...).destinationId(...)` call must set one explicitly.
-`AntragSender.send(...)` throws `IllegalStateException` immediately if it's
+`SubmissionToSend.builder(...).destinationId(...)` call must set one explicitly.
+`SubmissionSender.send(...)` throws `IllegalStateException` immediately if it's
 missing, before any network call.
 
 ## `fitconnect.receiver.*`
@@ -72,7 +72,7 @@ missing, before any network call.
 | `receiver.client-id` | string | — | `receiver.enabled=true`, unless every destination sets its own | Default subscriber client id, issued by the Self-Service-Portal. Used by any destination below that doesn't override it. |
 | `receiver.client-secret` | string | — | same as `client-id` | |
 | `receiver.destinations` | `List<Destination>` | `[]` | at least one, when `receiver.enabled=true` | Every Zustellpunkt this application polls - see below. One background poller handles the whole list. |
-| `receiver.default-outcome` | `LEAVE` \| `ACCEPT` \| `REJECT` | `LEAVE` | — | What happens to a downloaded submission no `@EventListener`/`@AntragEventListener` explicitly resolved. `LEAVE` is the safe default: nothing is deleted server-side, so it's retried next poll. |
+| `receiver.default-outcome` | `LEAVE` \| `ACCEPT` \| `REJECT` | `LEAVE` | — | What happens to a downloaded submission no `@EventListener`/`@SubmissionEventListener` explicitly resolved. `LEAVE` is the safe default: nothing is deleted server-side, so it's retried next poll. |
 | `receiver.allow-insecure-public-key` | boolean | `false` | — | Accepts a self-signed destination certificate. Never enable in PROD; useful only against a local/self-hosted TEST environment. |
 | `receiver.skip-submission-data-validation` | boolean | `false` | — | Skips the SDK's local JSON-Schema validation of received submission data. |
 | `receiver.disable-auto-reject` | boolean | `false` | — | By default a submission that fails validation is auto-rejected with a `DataSchemaViolation`. Set `true` to leave it on the delivery service instead. |

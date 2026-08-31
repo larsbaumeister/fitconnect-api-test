@@ -1,9 +1,9 @@
 package com.example.gewerbeamt.send;
 
 import com.example.gewerbeamt.Leistung;
-import com.gfi.ozg.fitko.spring.send.AntragSendException;
-import com.gfi.ozg.fitko.spring.send.AntragSender;
-import com.gfi.ozg.fitko.spring.send.AntragToSend;
+import com.gfi.ozg.fitko.spring.send.SubmissionSendException;
+import com.gfi.ozg.fitko.spring.send.SubmissionSender;
+import com.gfi.ozg.fitko.spring.send.SubmissionToSend;
 import com.gfi.ozg.fitko.spring.send.AttachmentToSend;
 import com.gfi.ozg.fitko.spring.send.DataFormat;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
@@ -17,10 +17,10 @@ import java.nio.charset.StandardCharsets;
 /**
  * Sends a Gewerbeanmeldung through FIT-Connect.
  *
- * <p>This is the entire send-side integration: inject {@link AntragSender}
+ * <p>This is the entire send-side integration: inject {@link SubmissionSender}
  * (auto-configured by {@code fitko-spring} because
  * {@code fitconnect.sender.client-id}/{@code client-secret} are set), build
- * an {@link AntragToSend}, call {@link AntragSender#send}. No
+ * an {@link SubmissionToSend}, call {@link SubmissionSender#send}. No
  * {@code ClientFactory}, no {@code ApplicationConfig}, no key handling.
  */
 @Service
@@ -28,20 +28,20 @@ public class GewerbeanmeldungService {
 
     private static final Logger log = LoggerFactory.getLogger(GewerbeanmeldungService.class);
 
-    private final AntragSender antragSender;
+    private final SubmissionSender submissionSender;
 
-    public GewerbeanmeldungService(AntragSender antragSender) {
-        this.antragSender = antragSender;
+    public GewerbeanmeldungService(SubmissionSender submissionSender) {
+        this.submissionSender = submissionSender;
     }
 
     /**
-     * @return the FIT-Connect submission and case ids assigned to the sent Antrag
-     * @throws AntragSendException if FIT-Connect rejected or could not deliver it
+     * @return the FIT-Connect submission and case ids assigned to the sent submission
+     * @throws SubmissionSendException if FIT-Connect rejected or could not deliver it
      */
     public SentSubmission submit(GewerbeanmeldungRequest request) {
         String xmlPayload = renderXml(request);
 
-        AntragToSend antrag = AntragToSend.builder(
+        SubmissionToSend submission = SubmissionToSend.builder(
                         Leistung.GEWERBEANMELDUNG_LEIKA,
                         Leistung.GEWERBEANMELDUNG_NAME,
                         DataFormat.XML,
@@ -62,12 +62,12 @@ public class GewerbeanmeldungService {
                 .build();
 
         try {
-            SentSubmission sent = antragSender.send(antrag);
+            SentSubmission sent = submissionSender.send(submission);
             log.info("Sent Gewerbeanmeldung for '{}' to destination {}: submissionId={}, caseId={}",
                     request.businessName(), request.destinationId(),
                     sent.getSubmissionId(), sent.getCaseId());
             return sent;
-        } catch (AntragSendException e) {
+        } catch (SubmissionSendException e) {
             // FIT-Connect rejected it or could not deliver it. Retry / dead-letter
             // as your process requires; here we just let it propagate.
             log.warn("Could not send Gewerbeanmeldung for '{}' to destination {}",

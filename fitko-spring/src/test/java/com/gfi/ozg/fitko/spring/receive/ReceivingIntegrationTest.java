@@ -103,8 +103,8 @@ class ReceivingIntegrationTest {
     static class TestConfig {
 
         @Bean
-        RecordingAntragListener recordingAntragListener() {
-            return new RecordingAntragListener();
+        RecordingSubmissionListener recordingSubmissionListener() {
+            return new RecordingSubmissionListener();
         }
 
         // FitConnectReceiverAutoConfiguration calls this once per configured
@@ -119,29 +119,29 @@ class ReceivingIntegrationTest {
     }
 
     /** Records every event it sees, and applies whatever outcome the current test configured. */
-    static class RecordingAntragListener {
+    static class RecordingSubmissionListener {
 
         enum Outcome { NONE, ACCEPT, REJECT }
 
-        final List<ReceivedAntrag> received = new CopyOnWriteArrayList<>();
+        final List<IncomingSubmission> received = new CopyOnWriteArrayList<>();
         volatile Outcome outcome = Outcome.NONE;
 
         @EventListener
-        void onAntrag(AntragReceivedEvent event) {
-            received.add(event.getAntrag());
+        void onSubmission(SubmissionReceivedEvent event) {
+            received.add(event.getSubmission());
             switch (outcome) {
-                case ACCEPT -> event.getAntrag().accept();
-                case REJECT -> event.getAntrag().reject(new TechnicalError());
+                case ACCEPT -> event.getSubmission().accept();
+                case REJECT -> event.getSubmission().reject(new TechnicalError());
                 case NONE -> { /* leave it to the caller */ }
             }
         }
     }
 
     @Autowired
-    AntragPollingService pollingService;
+    SubmissionPollingService pollingService;
 
     @Autowired
-    RecordingAntragListener listener;
+    RecordingSubmissionListener listener;
 
     private UUID submissionId;
     private ReceivedSubmission mockSubmission;
@@ -164,7 +164,7 @@ class ReceivingIntegrationTest {
         when(mockSubmission.getDataAsString()).thenReturn("<test>Hello</test>");
         when(SUBSCRIBER_CLIENT.requestSubmission(submissionId)).thenReturn(mockSubmission);
 
-        listener.outcome = RecordingAntragListener.Outcome.NONE;
+        listener.outcome = RecordingSubmissionListener.Outcome.NONE;
         listener.received.clear();
     }
 
@@ -187,7 +187,7 @@ class ReceivingIntegrationTest {
 
     @Test
     void aListenerCanAcceptTheSubmission() {
-        listener.outcome = RecordingAntragListener.Outcome.ACCEPT;
+        listener.outcome = RecordingSubmissionListener.Outcome.ACCEPT;
 
         pollingService.poll();
 
@@ -196,7 +196,7 @@ class ReceivingIntegrationTest {
 
     @Test
     void aListenerCanRejectTheSubmission() {
-        listener.outcome = RecordingAntragListener.Outcome.REJECT;
+        listener.outcome = RecordingSubmissionListener.Outcome.REJECT;
 
         pollingService.poll();
 

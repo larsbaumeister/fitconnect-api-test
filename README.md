@@ -3,7 +3,7 @@
 Spring Boot 4 auto-configuration for the
 [FIT-Connect Java SDK](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/overview):
 add it as a dependency, set `fitconnect.*` properties, and get an injectable
-`AntragSender` bean for sending plus a Spring application event for every
+`SubmissionSender` bean for sending plus a Spring application event for every
 submission a background poller downloads — no manual
 `ClientFactory`/`ApplicationConfig` wiring needed.
 
@@ -23,8 +23,8 @@ A single standalone Maven project under [`fitko-spring/`](fitko-spring)
 ## Example application
 
 - **[`fitko-spring-sample/`](fitko-spring-sample)** — a small, complete
-  Spring Boot app that integrates the starter: a REST endpoint that sends an
-  Antrag via an injected `AntragSender`, `@AntragEventListener` handlers for
+  Spring Boot app that integrates the starter: a REST endpoint that sends a
+  submission via an injected `SubmissionSender`, `@SubmissionEventListener` handlers for
   the receive side, an annotated `application.yaml`, and the three
   integration-test patterns. Copy from here to bootstrap your own service.
   `cd fitko-spring && mvn install` first, then `cd fitko-spring-sample && mvn test`.

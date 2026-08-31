@@ -34,10 +34,10 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 /**
- * Verifies {@link AntragEventListener}'s per-service filtering against a real
+ * Verifies {@link SubmissionEventListener}'s per-service filtering against a real
  * Spring context: a listener restricted to one {@code serviceIds} entry only
  * fires for a submission of that service, an unfiltered listener fires for
- * everything, and both run for the same {@link AntragReceivedEvent}.
+ * everything, and both run for the same {@link SubmissionReceivedEvent}.
  *
  * <p>{@code SUBSCRIBER_CLIENT} is created statically and handed out via a
  * plain {@code TestConfig}-provided {@link SubscriberClientFactory} bean
@@ -46,14 +46,14 @@ import static org.mockito.Mockito.when;
  * @BeforeEach} runs, so a {@code @MockitoBean} stubbed only in {@code
  * @BeforeEach} would still be answering with {@code null} at that point.
  */
-@SpringBootTest(classes = AntragEventListenerIntegrationTest.TestConfig.class, properties = {
+@SpringBootTest(classes = SubmissionEventListenerIntegrationTest.TestConfig.class, properties = {
         "fitconnect.sender.enabled=false",
         "fitconnect.receiver.client-id=test-client-id",
         "fitconnect.receiver.client-secret=test-client-secret",
         "fitconnect.receiver.polling.enabled=false"
 })
 @DirtiesContext
-class AntragEventListenerIntegrationTest {
+class SubmissionEventListenerIntegrationTest {
 
     private static final String GEWERBEANMELDUNG = "urn:de:fim:leika:leistung:99050035001000";
     private static final String BAUANTRAG = "urn:de:fim:leika:leistung:99050035002000";
@@ -102,24 +102,24 @@ class AntragEventListenerIntegrationTest {
         final List<String> bauantragHits = new CopyOnWriteArrayList<>();
         final List<String> unfilteredHits = new CopyOnWriteArrayList<>();
 
-        @AntragEventListener(serviceIds = GEWERBEANMELDUNG)
-        void onGewerbeanmeldung(AntragReceivedEvent event) {
-            gewerbeanmeldungHits.add(event.getAntrag().getSubmissionId().toString());
+        @SubmissionEventListener(serviceIds = GEWERBEANMELDUNG)
+        void onGewerbeanmeldung(SubmissionReceivedEvent event) {
+            gewerbeanmeldungHits.add(event.getSubmission().getSubmissionId().toString());
         }
 
-        @AntragEventListener(serviceIds = BAUANTRAG)
-        void onBauantrag(AntragReceivedEvent event) {
-            bauantragHits.add(event.getAntrag().getSubmissionId().toString());
+        @SubmissionEventListener(serviceIds = BAUANTRAG)
+        void onBauantrag(SubmissionReceivedEvent event) {
+            bauantragHits.add(event.getSubmission().getSubmissionId().toString());
         }
 
-        @AntragEventListener
-        void onAnyAntrag(AntragReceivedEvent event) {
-            unfilteredHits.add(event.getAntrag().getSubmissionId().toString());
+        @SubmissionEventListener
+        void onAnySubmission(SubmissionReceivedEvent event) {
+            unfilteredHits.add(event.getSubmission().getSubmissionId().toString());
         }
     }
 
     @Autowired
-    AntragPollingService pollingService;
+    SubmissionPollingService pollingService;
 
     @Autowired
     SelectiveListeners listeners;

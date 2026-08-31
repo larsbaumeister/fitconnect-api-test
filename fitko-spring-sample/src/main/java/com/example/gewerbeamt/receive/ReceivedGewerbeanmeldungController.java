@@ -18,9 +18,9 @@ import java.util.List;
 @RequestMapping("/api/empfangene-gewerbeanmeldungen")
 public class ReceivedGewerbeanmeldungController {
 
-    private final ReceivedAntragStore store;
+    private final ReceivedSubmissionStore store;
 
-    public ReceivedGewerbeanmeldungController(ReceivedAntragStore store) {
+    public ReceivedGewerbeanmeldungController(ReceivedSubmissionStore store) {
         this.store = store;
     }
 

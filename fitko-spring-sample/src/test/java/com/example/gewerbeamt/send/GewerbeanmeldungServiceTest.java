@@ -1,9 +1,9 @@
 package com.example.gewerbeamt.send;
 
 import com.example.gewerbeamt.Leistung;
-import com.gfi.ozg.fitko.spring.send.AntragSendException;
-import com.gfi.ozg.fitko.spring.send.AntragSender;
-import com.gfi.ozg.fitko.spring.send.AntragToSend;
+import com.gfi.ozg.fitko.spring.send.SubmissionSendException;
+import com.gfi.ozg.fitko.spring.send.SubmissionSender;
+import com.gfi.ozg.fitko.spring.send.SubmissionToSend;
 import com.gfi.ozg.fitko.spring.send.DataFormat;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
 import org.junit.jupiter.api.Test;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The send side is pure application code once {@link AntragSender} is
+ * The send side is pure application code once {@link SubmissionSender} is
  * injected, so it unit-tests with a plain Mockito mock - no Spring context,
  * no SDK, no network. This is the pattern to copy for your own send-side
  * tests.
@@ -32,13 +32,13 @@ import static org.mockito.Mockito.when;
 class GewerbeanmeldungServiceTest {
 
     @Mock
-    AntragSender antragSender;
+    SubmissionSender submissionSender;
 
     @InjectMocks
     GewerbeanmeldungService service;
 
     @Captor
-    ArgumentCaptor<AntragToSend> antragCaptor;
+    ArgumentCaptor<SubmissionToSend> submissionCaptor;
 
     private final GewerbeanmeldungRequest request = new GewerbeanmeldungRequest(
             UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7"),
@@ -47,10 +47,10 @@ class GewerbeanmeldungServiceTest {
             "erika@example.com");
 
     @Test
-    void buildsTheAntragFromTheRequestAndSendsIt() {
+    void buildsTheSubmissionFromTheRequestAndSendsIt() {
         UUID submissionId = UUID.randomUUID();
         UUID caseId = UUID.randomUUID();
-        when(antragSender.send(any(AntragToSend.class)))
+        when(submissionSender.send(any(SubmissionToSend.class)))
                 .thenReturn(new SentSubmission(request.destinationId(), caseId, submissionId));
 
         SentSubmission sent = service.submit(request);
@@ -58,23 +58,23 @@ class GewerbeanmeldungServiceTest {
         assertThat(sent.getSubmissionId()).isEqualTo(submissionId);
         assertThat(sent.getCaseId()).isEqualTo(caseId);
 
-        verify(antragSender).send(antragCaptor.capture());
-        AntragToSend antrag = antragCaptor.getValue();
-        assertThat(antrag.getDestinationId()).isEqualTo(request.destinationId());
-        assertThat(antrag.getServiceId()).isEqualTo(Leistung.GEWERBEANMELDUNG_LEIKA);
-        assertThat(antrag.getDataFormat()).isEqualTo(DataFormat.XML);
-        assertThat(antrag.getData()).contains("Baeckerei Mustermann").contains("<Gewerbeanmeldung");
-        assertThat(antrag.getReplyChannelEmail()).isEqualTo("erika@example.com");
-        assertThat(antrag.getAttachments()).hasSize(1);
+        verify(submissionSender).send(submissionCaptor.capture());
+        SubmissionToSend submission = submissionCaptor.getValue();
+        assertThat(submission.getDestinationId()).isEqualTo(request.destinationId());
+        assertThat(submission.getServiceId()).isEqualTo(Leistung.GEWERBEANMELDUNG_LEIKA);
+        assertThat(submission.getDataFormat()).isEqualTo(DataFormat.XML);
+        assertThat(submission.getData()).contains("Baeckerei Mustermann").contains("<Gewerbeanmeldung");
+        assertThat(submission.getReplyChannelEmail()).isEqualTo("erika@example.com");
+        assertThat(submission.getAttachments()).hasSize(1);
     }
 
     @Test
     void propagatesASendFailure() {
-        when(antragSender.send(any(AntragToSend.class)))
-                .thenThrow(new AntragSendException("delivery service said no"));
+        when(submissionSender.send(any(SubmissionToSend.class)))
+                .thenThrow(new SubmissionSendException("delivery service said no"));
 
         assertThatThrownBy(() -> service.submit(request))
-                .isInstanceOf(AntragSendException.class)
+                .isInstanceOf(SubmissionSendException.class)
                 .hasMessageContaining("delivery service said no");
     }
 }

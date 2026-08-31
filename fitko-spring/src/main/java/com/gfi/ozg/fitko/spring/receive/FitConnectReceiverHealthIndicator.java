@@ -10,12 +10,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Reports the {@link AntragPollingService}'s liveness as a Spring Boot Actuator
+ * Reports the {@link SubmissionPollingService}'s liveness as a Spring Boot Actuator
  * health contributor ({@code fitConnectReceiver} in {@code /actuator/health}).
  *
  * <p>The point is to distinguish "polling is healthy but idle" (no submissions
  * arriving, which is normal) from "polling has been failing for a while" - the
- * latter is otherwise invisible because {@link AntragPollingService} only logs
+ * latter is otherwise invisible because {@link SubmissionPollingService} only logs
  * per-destination failures at {@code WARN} and keeps going.
  *
  * <ul>
@@ -36,9 +36,9 @@ public class FitConnectReceiverHealthIndicator implements HealthIndicator {
 
     private static final long STALE_INTERVALS = 3;
 
-    private final AntragPollingService pollingService;
+    private final SubmissionPollingService pollingService;
 
-    public FitConnectReceiverHealthIndicator(AntragPollingService pollingService) {
+    public FitConnectReceiverHealthIndicator(SubmissionPollingService pollingService) {
         this.pollingService = Objects.requireNonNull(pollingService, "pollingService must not be null");
     }
 

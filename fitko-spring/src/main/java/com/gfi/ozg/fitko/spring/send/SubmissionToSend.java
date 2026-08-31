@@ -9,11 +9,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * An Antrag to hand to {@link AntragSender#send}. Immutable; build one with
+ * A submission to hand to {@link SubmissionSender#send}. Immutable; build one with
  * {@link #builder(String, String, DataFormat, String, URI)}.
  *
  * <pre>{@code
- * AntragToSend antrag = AntragToSend.builder(
+ * SubmissionToSend submission = SubmissionToSend.builder(
  *         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
  *         DataFormat.XML, xmlPayload, dataSchemaUri)
  *     .destinationId(destinationId)
@@ -21,11 +21,11 @@ import java.util.UUID;
  *     .replyChannelEmail("applicant@example.com")
  *     .attachment(AttachmentToSend.of(pdfResource, "application/pdf"))
  *     .build();
- * SentSubmission sent = antragSender.send(antrag);
+ * SentSubmission sent = submissionSender.send(submission);
  * }</pre>
  */
 @Getter
-public final class AntragToSend {
+public final class SubmissionToSend {
 
     private final UUID destinationId;
     private final String serviceId;
@@ -40,7 +40,7 @@ public final class AntragToSend {
     private final List<DataSetToSend> dataSets;
     private final String metadataVersion;
 
-    private AntragToSend(Builder builder) {
+    private SubmissionToSend(Builder builder) {
         this.destinationId = builder.destinationId;
         this.serviceId = builder.serviceId;
         this.serviceName = builder.serviceName;
@@ -95,7 +95,7 @@ public final class AntragToSend {
             this.dataSchema = dataSchema;
         }
 
-        /** Required: the Zustellpunkt (destination) this Antrag is sent to. */
+        /** Required: the Zustellpunkt (destination) this submission is sent to. */
         public Builder destinationId(UUID destinationId) {
             this.destinationId = destinationId;
             return this;
@@ -106,7 +106,7 @@ public final class AntragToSend {
             return this;
         }
 
-        /** Appends this Antrag to an existing case instead of starting a new one. */
+        /** Appends this submission to an existing case instead of starting a new one. */
         public Builder caseId(UUID caseId) {
             this.caseId = caseId;
             return this;
@@ -148,14 +148,14 @@ public final class AntragToSend {
             return this;
         }
 
-        public AntragToSend build() {
-            return new AntragToSend(this);
+        public SubmissionToSend build() {
+            return new SubmissionToSend(this);
         }
     }
 
     @Override
     public String toString() {
-        return "AntragToSend{destinationId=" + destinationId + ", serviceId='" + serviceId + '\''
+        return "SubmissionToSend{destinationId=" + destinationId + ", serviceId='" + serviceId + '\''
                 + ", caseId=" + caseId + '}';
     }
 }

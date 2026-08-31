@@ -1,10 +1,10 @@
-# Identity, Kammer-Routing & Trust Level in an Antrag
+# Identity, Kammer-Routing & Trust Level in a submission
 
 FIT-Connect is a transport layer, not an identity or routing authority. Here's exactly
 what it gives you for each of these three questions, and what you still have to build
 yourself.
 
-## 1. Getting user information (ELSTER-ID / BundID) from an Antrag
+## 1. Getting user information (ELSTER-ID / BundID) from a submission
 
 There is no native "applicant identity" field. It surfaces in one of two places, and
 only if the sender chose to put it there.
@@ -21,7 +21,7 @@ only if the sender chose to put it there.
   `dataSet` using Governikus's `IdentificationReport` schema. Its `subjectRef` carries
   the pseudonymous subject identifier from whichever trust framework was used.
 
-Both slots are available off `ReceivedSubmission`/`ReceivedAntrag.getMetadata()` (the
+Both slots are available off `ReceivedSubmission`/`IncomingSubmission.getMetadata()` (the
 SDK exposes `dataSets`/`authenticationInformation` as part of the parsed metadata) -
 no extra lookup needed.
 
@@ -30,7 +30,7 @@ the sending Formular. FIT-Connect doesn't enforce it and doesn't check that it m
 the form data. Plenty of OZG-Formulare — especially simple company-data forms — never
 attach one.
 
-**Handling Anträge without it, or with insufficient identity:**
+**Handling submissions without it, or with insufficient identity:**
 
 1. **Contract it at onboarding.** When a Formular-Anbieter registers to send to one of
    your destinations, agree what they must attach — an `IdentificationReport` dataSet,
@@ -46,7 +46,7 @@ attach one.
    `IdentificationReport`, when present, is an authenticated assertion. Everything
    else is just form input.
 
-## 2. Finding the responsible Kammer for an Antrag
+## 2. Finding the responsible Kammer for a submission
 
 FIT-Connect doesn't know what a Kammer is — it only routes by **LeiKa-Schlüssel +
 region** (ARS / AGS / Area).
@@ -77,7 +77,7 @@ Kammer — not a forced handover to the other Kammer, and not a receipt-time re-
 **Fallback:** ambiguous or missing Sitz data → default to a catch-all intake
 destination and a manual triage queue, rather than guessing.
 
-## 3. Getting the trust level (Vertrauensniveau) from an Antrag
+## 3. Getting the trust level (Vertrauensniveau) from a submission
 
 Same mechanism as user identity in §1 — no dedicated field, it rides along in the
 `IdentificationReport` dataSet's `levelOfAssurance`:
@@ -95,7 +95,7 @@ entry (v1) whose schema matches `IdentificationReport`, parse its JSON `content`
 
 **Attaching it on send:** build a `DataSetToSend` (fitko-spring) or the SDK's
 `DataSet` type directly - either auto-computes the required sha512 hash - to attach
-a real `IdentificationReport` payload via `AntragToSend.builder(...).dataSet(...)`.
+a real `IdentificationReport` payload via `SubmissionToSend.builder(...).dataSet(...)`.
 
 **Same caveat as §1:** it's opt-in by the sender. If a process needs a guaranteed
 minimum LoA — e.g. "must be 2FA-verified" for a given operation — that's a rule you

@@ -1,10 +1,10 @@
 package com.gfi.ozg.fitko.spring.receive;
 
 /**
- * What {@link AntragPollingService} does with a downloaded {@link ReceivedAntrag}
- * after every {@code @EventListener} for {@link AntragReceivedEvent} has
- * returned, if none of them already called {@link ReceivedAntrag#accept()} or
- * {@link ReceivedAntrag#reject}.
+ * What {@link SubmissionPollingService} does with a downloaded {@link IncomingSubmission}
+ * after every {@code @EventListener} for {@link SubmissionReceivedEvent} has
+ * returned, if none of them already called {@link IncomingSubmission#accept()} or
+ * {@link IncomingSubmission#reject}.
  */
 public enum DefaultOutcome {
 

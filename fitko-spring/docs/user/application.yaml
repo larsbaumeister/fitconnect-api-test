@@ -68,7 +68,7 @@ fitconnect:
         # through polling, even with callback.enabled: true below.
 
     # What happens to a downloaded submission no @EventListener/
-    # @AntragEventListener explicitly accepted or rejected: LEAVE (default,
+    # @SubmissionEventListener explicitly accepted or rejected: LEAVE (default,
     # safest - retried next poll), ACCEPT, or REJECT (as a generic
     # TechnicalError).
     default-outcome: LEAVE

@@ -81,7 +81,7 @@ class SubmissionRetryCooldownIntegrationTest {
     }
 
     @Autowired
-    AntragPollingService pollingService;
+    SubmissionPollingService pollingService;
 
     private UUID submissionId;
 

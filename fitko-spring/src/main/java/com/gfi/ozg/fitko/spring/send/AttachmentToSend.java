@@ -9,7 +9,7 @@ import org.springframework.util.Assert;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-/** One attachment to add to an {@link AntragToSend}, held in memory. */
+/** One attachment to add to an {@link SubmissionToSend}, held in memory. */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AttachmentToSend {
 

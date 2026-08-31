@@ -18,13 +18,13 @@ import java.util.concurrent.ConcurrentMap;
  * {@link GewerbeanmeldungHandler}.
  */
 @Component
-public class ReceivedAntragStore {
+public class ReceivedSubmissionStore {
 
     private final ConcurrentMap<UUID, ReceivedGewerbeanmeldung> bySubmissionId = new ConcurrentHashMap<>();
 
     /** @return {@code true} if this was the first time we saw this submission */
-    public boolean save(ReceivedGewerbeanmeldung antrag) {
-        return bySubmissionId.putIfAbsent(antrag.submissionId(), antrag) == null;
+    public boolean save(ReceivedGewerbeanmeldung submission) {
+        return bySubmissionId.putIfAbsent(submission.submissionId(), submission) == null;
     }
 
     public boolean contains(UUID submissionId) {

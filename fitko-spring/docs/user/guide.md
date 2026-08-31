@@ -2,7 +2,7 @@
 
 Spring Boot 4 auto-configuration for the [FIT-Connect Java SDK](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/overview):
 add the dependency, set `fitconnect.*` properties, get an injectable
-`AntragSender` for sending and a Spring event for every submission a
+`SubmissionSender` for sending and a Spring event for every submission a
 background poller downloads. No manual `ClientFactory`/`ApplicationConfig`
 wiring.
 
@@ -66,25 +66,25 @@ Only send, or only receive? Set `fitconnect.sender.enabled=false` /
 @Service
 class GewerbeanmeldungService {
 
-    private final AntragSender antragSender;
+    private final SubmissionSender submissionSender;
 
-    GewerbeanmeldungService(AntragSender antragSender) {
-        this.antragSender = antragSender;
+    GewerbeanmeldungService(SubmissionSender submissionSender) {
+        this.submissionSender = submissionSender;
     }
 
     void submit(UUID destinationId, String xmlPayload) {
-        AntragToSend antrag = AntragToSend.builder(
+        SubmissionToSend submission = SubmissionToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, xmlPayload, URI.create("https://fimportal.de/.../xzufi"))
                 .destinationId(destinationId) // required - no configured fallback
                 .replyChannelEmail("applicant@example.com")
                 .build();
-        SentSubmission sent = antragSender.send(antrag);
+        SentSubmission sent = submissionSender.send(submission);
     }
 }
 ```
 
-`send()` throws `AntragSendException` if FIT-Connect rejected or couldn't
+`send()` throws `SubmissionSendException` if FIT-Connect rejected or couldn't
 deliver it, `IllegalStateException` if `destinationId` is missing.
 
 ## Receiving
@@ -96,10 +96,10 @@ Handle it like any Spring event:
 class GewerbeanmeldungHandler {
 
     @EventListener
-    void onAntrag(AntragReceivedEvent event) {
-        ReceivedAntrag antrag = event.getAntrag();
-        process(antrag.getDataAsString());
-        antrag.accept(); // or antrag.reject(new DataSchemaViolation()); leave both unset to reconsider it next poll
+    void onSubmission(SubmissionReceivedEvent event) {
+        IncomingSubmission submission = event.getSubmission();
+        process(submission.getDataAsString());
+        submission.accept(); // or submission.reject(new DataSchemaViolation()); leave both unset to reconsider it next poll
     }
 }
 ```
@@ -110,7 +110,7 @@ re-decrypted, re-published — until something calls `accept()`/`reject()`.
 `fitconnect.receiver.default-outcome` decides what happens when nothing does
 (default `LEAVE`, safest).
 
-Receiving on several destinations? Use `@AntragEventListener` instead of
+Receiving on several destinations? Use `@SubmissionEventListener` instead of
 `@EventListener` for a handler per Leistung — other listeners still see every
 submission, filtered or not:
 
@@ -118,14 +118,14 @@ submission, filtered or not:
 @Component
 class LeistungHandlers {
 
-    @AntragEventListener(serviceIds = "urn:de:fim:leika:leistung:99050035001000")
-    void onGewerbeanmeldung(AntragReceivedEvent event) { ... }
+    @SubmissionEventListener(serviceIds = "urn:de:fim:leika:leistung:99050035001000")
+    void onGewerbeanmeldung(SubmissionReceivedEvent event) { ... }
 
-    @AntragEventListener(serviceIds = "urn:de:fim:leika:leistung:99050035002000")
-    void onBauantrag(AntragReceivedEvent event) { ... }
+    @SubmissionEventListener(serviceIds = "urn:de:fim:leika:leistung:99050035002000")
+    void onBauantrag(SubmissionReceivedEvent event) { ... }
 
-    @AntragEventListener // no serviceIds: every submission, e.g. logging/auditing
-    void onAnyAntrag(AntragReceivedEvent event) { ... }
+    @SubmissionEventListener // no serviceIds: every submission, e.g. logging/auditing
+    void onAnySubmission(SubmissionReceivedEvent event) { ... }
 }
 ```
 
@@ -167,8 +167,8 @@ running regardless, so a missed callback is still picked up next poll cycle.
 
 ## Testing your integration
 
-Mock `AntragSender` for send-side tests. For receive-side tests, construct an
-`AntragReceivedEvent` and publish it, or call your `@EventListener` method
+Mock `SubmissionSender` for send-side tests. For receive-side tests, construct an
+`SubmissionReceivedEvent` and publish it, or call your `@EventListener` method
 directly — see this project's own `src/test` for the pattern (mocked SDK
 `SenderClient`/`SubscriberClient`, real `@SpringBootTest` contexts, no
 network or key material).
@@ -185,7 +185,7 @@ network or key material).
   [Übertragung großer Attachments](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#übertragung-großer-attachments).
 - **Destination/routing lookup and provisioning** (`RouterClient`,
   `DestinationClient`) — you set `fitconnect.receiver.destinations` /
-  `AntragToSend.destinationId` directly, and register a destination's
+  `SubmissionToSend.destinationId` directly, and register a destination's
   `Callback` with FIT-Connect yourself; see
   [Routing-Informationen](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#routing-informationen)
   to resolve a destination from a LeiKa key and region.

@@ -1,6 +1,6 @@
 package com.example.gewerbeamt.send;
 
-import com.gfi.ozg.fitko.spring.send.AntragSendException;
+import com.gfi.ozg.fitko.spring.send.SubmissionSendException;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -51,8 +51,8 @@ public class GewerbeanmeldungController {
     }
 
     /** Surface a failed send as 502 rather than a bare 500. */
-    @ExceptionHandler(AntragSendException.class)
-    public ProblemDetail handleSendFailure(AntragSendException e) {
+    @ExceptionHandler(SubmissionSendException.class)
+    public ProblemDetail handleSendFailure(SubmissionSendException e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, e.getMessage());
         problem.setTitle("FIT-Connect send failed");
         return problem;

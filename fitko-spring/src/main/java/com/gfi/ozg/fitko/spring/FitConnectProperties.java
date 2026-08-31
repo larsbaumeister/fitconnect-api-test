@@ -85,7 +85,7 @@ public class FitConnectProperties {
         private String destination;
     }
 
-    /** Sending ("Onlinedienst") side: enables the {@code AntragSender} bean. */
+    /** Sending ("Onlinedienst") side: enables the {@code SubmissionSender} bean. */
     @Getter
     @Setter
     public static class Sender {
@@ -100,7 +100,7 @@ public class FitConnectProperties {
         private String clientSecret;
     }
 
-    /** Receiving ("Verwaltungssystem") side: enables the {@code AntragPollingService}. */
+    /** Receiving ("Verwaltungssystem") side: enables the {@code SubmissionPollingService}. */
     @Getter
     @Setter
     public static class Receiver {
@@ -121,7 +121,7 @@ public class FitConnectProperties {
         /**
          * Every Zustellpunkt (destination) this application receives on. At
          * least one is required whenever {@code fitconnect.receiver.enabled}
-         * is {@code true}. One {@link com.gfi.ozg.fitko.spring.receive.AntragPollingService}
+         * is {@code true}. One {@link com.gfi.ozg.fitko.spring.receive.SubmissionPollingService}
          * handles the whole list, polling each destination once per cycle -
          * use this to receive several Leistungen (each with its own
          * destination) in one application.
@@ -223,7 +223,7 @@ public class FitConnectProperties {
         }
     }
 
-    /** How often {@code AntragPollingService} checks the destination for new submissions. */
+    /** How often {@code SubmissionPollingService} checks the destination for new submissions. */
     @Getter
     @Setter
     public static class Polling {

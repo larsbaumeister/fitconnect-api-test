@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Registers {@link FitConnectCallbackController}, the optional webhook
  * endpoint FIT-Connect can push new-submission notifications to instead of
- * (or alongside) {@link com.gfi.ozg.fitko.spring.receive.AntragPollingService}
+ * (or alongside) {@link com.gfi.ozg.fitko.spring.receive.SubmissionPollingService}
  * polling for them.
  *
  * <p>Opt-in on purpose ({@code havingValue = "true"}, no {@code

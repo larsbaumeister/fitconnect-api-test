@@ -8,8 +8,8 @@ import dev.fitko.fitconnect.client.bootstrap.ClientFactory;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.config.ApplicationConfigFactory;
-import com.gfi.ozg.fitko.spring.receive.AntragEventListenerFactory;
-import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
+import com.gfi.ozg.fitko.spring.receive.SubmissionEventListenerFactory;
+import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestinations;
@@ -32,7 +32,7 @@ import java.util.List;
  * configured destination (see {@link ApplicationConfigFactory}'s javadoc for
  * why one isn't shared) wrapped as a {@link ReceivingDestination}, a {@link
  * SubmissionProcessor} that turns a submission id into an {@code
- * AntragReceivedEvent}, and the {@link AntragPollingService} that drives it
+ * SubmissionReceivedEvent}, and the {@link SubmissionPollingService} that drives it
  * by polling. {@link FitConnectCallbackAutoConfiguration} reuses the same
  * {@link ReceivingDestination} list and {@link SubmissionProcessor} for the
  * optional callback webhook endpoint.
@@ -47,14 +47,14 @@ import java.util.List;
 @Slf4j
 public class FitConnectReceiverAutoConfiguration {
 
-    // Registered as infrastructure so @AntragEventListener(serviceIds = ...)
+    // Registered as infrastructure so @SubmissionEventListener(serviceIds = ...)
     // methods anywhere in the application get filtered per-service; without
     // it Spring's own DefaultEventListenerFactory would still run them, just
     // without the filtering (@EventListener is a meta-annotation on it).
     @Bean
     @ConditionalOnMissingBean
-    public AntragEventListenerFactory antragEventListenerFactory() {
-        return new AntragEventListenerFactory();
+    public SubmissionEventListenerFactory submissionEventListenerFactory() {
+        return new SubmissionEventListenerFactory();
     }
 
     @Bean
@@ -104,17 +104,17 @@ public class FitConnectReceiverAutoConfiguration {
         return new SubmissionProcessor(eventPublisher, properties.getReceiver(), resolveMetrics(metrics));
     }
 
-    // No initMethod/destroyMethod here: AntragPollingService implements
+    // No initMethod/destroyMethod here: SubmissionPollingService implements
     // SmartLifecycle itself, so the container already calls start()/stop()
     // at the right point (start() honours isAutoStartup(), i.e.
     // fitconnect.receiver.polling.enabled) - wiring both would start it twice.
     @Bean
     @ConditionalOnMissingBean
-    public AntragPollingService antragPollingService(ReceivingDestinations fitConnectReceivingDestinations,
+    public SubmissionPollingService submissionPollingService(ReceivingDestinations fitConnectReceivingDestinations,
                                                        SubmissionProcessor submissionProcessor,
                                                        FitConnectProperties properties,
                                                        ObjectProvider<ReceivePipelineMetrics> metrics) {
-        return new AntragPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver(),
+        return new SubmissionPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver(),
                 resolveMetrics(metrics));
     }
 

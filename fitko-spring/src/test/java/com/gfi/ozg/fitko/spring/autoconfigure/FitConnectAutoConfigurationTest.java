@@ -2,12 +2,12 @@ package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import dev.fitko.fitconnect.client.SenderClient;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
-import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
+import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import com.gfi.ozg.fitko.spring.receive.FitConnectReceiverHealthIndicator;
 import com.gfi.ozg.fitko.spring.receive.MicrometerReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
-import com.gfi.ozg.fitko.spring.send.AntragSender;
+import com.gfi.ozg.fitko.spring.send.SubmissionSender;
 import com.gfi.ozg.fitko.spring.support.TestJwkKeys;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -55,8 +55,8 @@ class FitConnectAutoConfigurationTest {
     @Test
     void backsOffEntirelyWhenDisabled() {
         contextRunner.withPropertyValues("fitconnect.enabled=false")
-                .run(context -> assertThat(context).doesNotHaveBean(AntragSender.class)
-                        .doesNotHaveBean(AntragPollingService.class));
+                .run(context -> assertThat(context).doesNotHaveBean(SubmissionSender.class)
+                        .doesNotHaveBean(SubmissionPollingService.class));
     }
 
     @Test
@@ -67,9 +67,9 @@ class FitConnectAutoConfigurationTest {
                         "fitconnect.sender.client-secret=secret")
                 .run(context -> assertThat(context)
                         .hasSingleBean(SenderClient.class)
-                        .hasSingleBean(AntragSender.class)
+                        .hasSingleBean(SubmissionSender.class)
                         .doesNotHaveBean(SubscriberClientFactory.class)
-                        .doesNotHaveBean(AntragPollingService.class));
+                        .doesNotHaveBean(SubmissionPollingService.class));
     }
 
     @Test
@@ -92,9 +92,9 @@ class FitConnectAutoConfigurationTest {
                         "fitconnect.receiver.polling.enabled=false")
                 .run(context -> assertThat(context)
                         .hasSingleBean(SubscriberClientFactory.class)
-                        .hasSingleBean(AntragPollingService.class)
+                        .hasSingleBean(SubmissionPollingService.class)
                         .doesNotHaveBean(SenderClient.class)
-                        .doesNotHaveBean(AntragSender.class));
+                        .doesNotHaveBean(SubmissionSender.class));
     }
 
     @Test

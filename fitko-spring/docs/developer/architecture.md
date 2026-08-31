@@ -6,7 +6,7 @@ For humans and agents working on `fitko-spring` itself. For usage docs, see
 ## Goal
 
 Turn `fitconnect.*` Spring properties into a working FIT-Connect SDK setup:
-an injectable `AntragSender` bean, and a Spring `ApplicationEvent` per
+an injectable `SubmissionSender` bean, and a Spring `ApplicationEvent` per
 submission a background poller (or webhook) downloads. No app code should
 ever touch the SDK's `ClientFactory`/`ApplicationConfig` directly.
 
@@ -24,7 +24,7 @@ why and where each is handled instead.
 | `spring` (root) | `FitConnectProperties` — the whole `fitconnect.*` config tree. |
 | `spring.autoconfigure` | `@AutoConfiguration` classes. Wiring only, no logic. |
 | `spring.config` | `ApplicationConfigFactory`/`MetadataVersions` — properties → SDK types. |
-| `spring.send` | Public sending API: `AntragSender`, `AntragToSend`, `AttachmentToSend`, `DataSetToSend`. |
+| `spring.send` | Public sending API: `SubmissionSender`, `SubmissionToSend`, `AttachmentToSend`, `DataSetToSend`. |
 | `spring.receive` | Event API, poller, processor, metrics, health indicator. |
 | `spring.receive.callback` | The webhook controller. |
 
@@ -64,13 +64,13 @@ just no bean, when it isn't.
   reordering two same-typed fields there would break this silently, so treat
   it as fragile and pin the verified SDK version in that comment when you
   touch it.
-- **Receive API = Spring events.** `AntragReceivedEvent` + `@EventListener`
+- **Receive API = Spring events.** `SubmissionReceivedEvent` + `@EventListener`
   gives consumers `@Async`/`@Order`/`@TransactionalEventListener` for free.
-  `@AntragEventListener` is a meta-`@EventListener` plus a custom
+  `@SubmissionEventListener` is a meta-`@EventListener` plus a custom
   `EventListenerFactory` for per-service filtering — it must filter in
   `onApplicationEvent`, not the private `shouldHandle(event, args)` overload;
   overriding the public `shouldHandle(ApplicationEvent)` silently does
-  nothing (see `AntragEventListenerFactory` javadoc).
+  nothing (see `SubmissionEventListenerFactory` javadoc).
 - **Poller = `SmartLifecycle` on its own daemon thread**, not the app's
   `TaskScheduler`. `isAutoStartup()` follows `polling.enabled`. `@PreDestroy`
   and `stop()` are deliberately not both wired to avoid a double-stop.
@@ -86,7 +86,7 @@ just no bean, when it isn't.
   injection point would silently see only that stray bean instead of the
   configured destinations, no error or warning ever (name-based injection does
   **not** help - verified experimentally, see `ReceivingDestinations`'
-  javadoc). `AntragPollingService` and `FitConnectCallbackController` both
+  javadoc). `SubmissionPollingService` and `FitConnectCallbackController` both
   take `ReceivingDestinations` for exactly this reason - don't revert either
   back to a raw `List<ReceivingDestination>` parameter.
 
@@ -129,8 +129,8 @@ covers, then note there if something changed).
 ## Extension points
 
 Every bean is `@ConditionalOnMissingBean` — declare your own of the same type
-to replace it: `SenderClient`, `AntragSender`, `SubscriberClientFactory`,
-`ReceivingDestinations`, `SubmissionProcessor`, `AntragPollingService`,
+to replace it: `SenderClient`, `SubmissionSender`, `SubscriberClientFactory`,
+`ReceivingDestinations`, `SubmissionProcessor`, `SubmissionPollingService`,
 `ReceivePipelineMetrics`, `FitConnectReceiverHealthIndicator`,
 `fitConnectCallbackObjectMapper`.
 

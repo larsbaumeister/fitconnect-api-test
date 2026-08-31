@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A downloaded, decrypted, and locally validated submission, delivered to
- * application code via {@link AntragReceivedEvent}.
+ * application code via {@link SubmissionReceivedEvent}.
  *
  * <p>Exactly one of {@link #accept()}/{@link #reject} may be called, and at
  * most once - further calls throw {@link IllegalStateException}. Call
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 @Slf4j
-public final class ReceivedAntrag {
+public final class IncomingSubmission {
 
     private final ReceivedSubmission delegate;
     private final AtomicBoolean resolved = new AtomicBoolean(false);

@@ -1,8 +1,8 @@
 package com.example.gewerbeamt.receive;
 
-import com.gfi.ozg.fitko.spring.receive.AntragEventListener;
-import com.gfi.ozg.fitko.spring.receive.AntragReceivedEvent;
-import com.gfi.ozg.fitko.spring.receive.ReceivedAntrag;
+import com.gfi.ozg.fitko.spring.receive.SubmissionEventListener;
+import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
+import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>Shows two things:
  * <ul>
- *   <li>{@code @AntragEventListener} with no {@code serviceIds} = every Antrag;</li>
+ *   <li>{@code @SubmissionEventListener} with no {@code serviceIds} = every submission;</li>
  *   <li>multiple listeners coexist. They run in {@code @Order} order on the
  *       poller thread; this one runs first (lower order) so the audit line is
  *       written before {@link GewerbeanmeldungHandler} accepts/rejects.</li>
@@ -24,20 +24,20 @@ import org.springframework.stereotype.Component;
  * resolving the submission is the domain handler's job, not the auditor's.
  */
 @Component
-public class AntragAuditListener {
+public class SubmissionAuditListener {
 
-    private static final Logger log = LoggerFactory.getLogger(AntragAuditListener.class);
+    private static final Logger log = LoggerFactory.getLogger(SubmissionAuditListener.class);
 
-    @AntragEventListener
+    @SubmissionEventListener
     @Order(0)
-    public void audit(AntragReceivedEvent event) {
-        ReceivedAntrag antrag = event.getAntrag();
+    public void audit(SubmissionReceivedEvent event) {
+        IncomingSubmission submission = event.getSubmission();
         log.info("AUDIT received submission={} case={} destination={} service={} mimeType={} bytes={}",
-                antrag.getSubmissionId(),
-                antrag.getCaseId(),
-                antrag.getDestinationId(),
-                antrag.getServiceType().getIdentifier(),
-                antrag.getDataMimeType(),
-                antrag.getDataAsBytes().length);
+                submission.getSubmissionId(),
+                submission.getCaseId(),
+                submission.getDestinationId(),
+                submission.getServiceType().getIdentifier(),
+                submission.getDataMimeType(),
+                submission.getDataAsBytes().length);
     }
 }

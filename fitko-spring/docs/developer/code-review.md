@@ -11,7 +11,7 @@
 
 `fitko-spring` is a well-built Spring Boot 4 auto-configuration starter around the
 FIT-Connect Java SDK. It does one job — turn `fitconnect.*` properties into an
-injectable `AntragSender` plus an event-driven receiving pipeline — and does it
+injectable `SubmissionSender` plus an event-driven receiving pipeline — and does it
 idiomatically: `@AutoConfiguration` classes with correct back-off conditions,
 `@ConfigurationProperties` with javadoc-driven IDE metadata, a Spring
 `ApplicationEvent` as the receive API, `SmartLifecycle` for the poller, and a
@@ -56,18 +56,18 @@ below are refinements, not blockers. The themes worth attention are:
 |---|---|
 | **Package layout** | `autoconfigure` (wiring) / `config` (SDK translation) / `send` / `receive` / `receive.callback` — clear seams, no cyclic dependencies, no app-specific logic leaking in. |
 | **Auto-configuration chain** | `FitConnectAutoConfiguration` owns the single `ApplicationConfig` bean; sender/receiver/callback configs are `@ConditionalOnBean(ApplicationConfig.class)` (+`@AutoConfiguration(after=…)`), so disabling the core cleanly disables everything downstream. The rationale is spelled out in each class's javadoc. |
-| **Receive API = Spring events** | `AntragReceivedEvent` + `@EventListener` is the right idiom: consumers get `@Async`, `@Order`, `@TransactionalEventListener`, narrower parameter types, return-value republishing for free. |
-| **`@AntragEventListener`** | A meta-annotated `@EventListener` with a custom `EventListenerFactory` ordered ahead of `DefaultEventListenerFactory`. The comment at `AntragEventListenerFactory.java:59` about having to filter in `onApplicationEvent` (not the private `shouldHandle(event,args)` overload) documents a real Spring gotcha and shows the mechanism was understood, not cargo-culted. |
+| **Receive API = Spring events** | `SubmissionReceivedEvent` + `@EventListener` is the right idiom: consumers get `@Async`, `@Order`, `@TransactionalEventListener`, narrower parameter types, return-value republishing for free. |
+| **`@SubmissionEventListener`** | A meta-annotated `@EventListener` with a custom `EventListenerFactory` ordered ahead of `DefaultEventListenerFactory`. The comment at `SubmissionEventListenerFactory.java:59` about having to filter in `onApplicationEvent` (not the private `shouldHandle(event,args)` overload) documents a real Spring gotcha and shows the mechanism was understood, not cargo-culted. |
 | **One `SubscriberClient` per destination** | Correct and verified against the SDK: `SubscriberConfig` bakes one key set into each client instance. `ApplicationConfigFactory` builds the shared config once and clones it per destination with its own `SubscriberConfig`. |
 | **Testing seam** | `SubscriberClientFactory` (`@FunctionalInterface`, default bean `ClientFactory::createSubscriberClient`) lets tests hand out a distinct mock per destination — used well in `ReceivingIntegrationTest`. |
-| **Poller lifecycle** | `AntragPollingService implements SmartLifecycle`, dedicated single daemon thread, not the app's `TaskScheduler`. `isAutoStartup()` honours `polling.enabled`. `@PreDestroy` + `stop()` are deliberately not double-wired (comment at `FitConnectReceiverAutoConfiguration.java:100`). |
+| **Poller lifecycle** | `SubmissionPollingService implements SmartLifecycle`, dedicated single daemon thread, not the app's `TaskScheduler`. `isAutoStartup()` honours `polling.enabled`. `@PreDestroy` + `stop()` are deliberately not double-wired (comment at `FitConnectReceiverAutoConfiguration.java:100`). |
 | **Fail-fast config** | Missing/invalid properties throw `FitConnectConfigurationException` at context-refresh time with a property-path message (`fitconnect.receiver.destinations[id=…].signing-key`), never at request time. |
 | **Callback security** | Delegated entirely to the SDK's `validateCallback` HMAC scheme; unknown/secret-less destinations return 404; a submission listed for a different destination than the path variable is ignored (`FitConnectCallbackController.java:97`). |
 
 ### 3.2 Architectural limitations (by design, but worth stating)
 
 1. **Polling is fully sequential across destinations and submissions.**
-   `AntragPollingService.poll()` (`:113`) loops destinations one by one on a
+   `SubmissionPollingService.poll()` (`:113`) loops destinations one by one on a
    single thread, and within a destination processes each submission (download +
    decrypt + publish + listener execution) inline before fetching the next. One
    slow destination or one slow listener stalls the whole cycle. Fine for a
@@ -100,9 +100,9 @@ below are refinements, not blockers. The themes worth attention are:
 
 **As a dependency, reusability is good.** The starter is domain-agnostic within
 FIT-Connect: no hard-coded Leistungen, endpoints, or business rules; everything is
-`fitconnect.*` config or builder input. Public API surface (`AntragSender`,
-`AntragToSend`/`AttachmentToSend`/`DataSetToSend`, `AntragReceivedEvent`,
-`ReceivedAntrag`, `DefaultOutcome`, `@AntragEventListener`) is small, immutable
+`fitconnect.*` config or builder input. Public API surface (`SubmissionSender`,
+`SubmissionToSend`/`AttachmentToSend`/`DataSetToSend`, `SubmissionReceivedEvent`,
+`IncomingSubmission`, `DefaultOutcome`, `@SubmissionEventListener`) is small, immutable
 where it matters, and documented. Drop it on the classpath, set properties, inject
 a bean — the stated goal is met.
 
@@ -112,7 +112,7 @@ a bean — the stated goal is met.
 |---|---|---|
 | R1 | **Not published as a proper library artifact.** No `-sources`/`-javadoc` jars (POM has no `maven-source-plugin`/`maven-javadoc-plugin`), no `<scm>`, `<licenses>`, `<developers>`, `<url>` — all required for Maven Central and expected by consumers doing "go to source". No CI pipeline in the module (`.gitlab-ci.yml` present only belongs to the unrelated Docusaurus checkout under the top-level `docs/`). | A consuming team can't step into sources in their IDE; can't verify the build reproducibly. |
 | R2 | **Standalone POM, no `<parent>`, no BOM import for consumers.** Fine as a "clone and `mvn package`" sample, but a consuming multi-module build gets no dependency-version alignment from it (it also can't, since it pins Spring Boot 4.1.1 itself — a version skew between the starter's transitive Boot and the consumer's Boot is possible). | Version-skew risk if the consumer is on a different Boot 4.x patch. Consider documenting the supported Boot range. |
-| R3 | ~~`List<ReceivingDestination>` as a bean type.~~ **Fixed (2026-08-31).** Verified experimentally (three minimal Spring contexts, not just read from source) before fixing: a raw `List<ReceivingDestination>` bean is dropped by Spring's collection-autowiring the moment *any* `ReceivingDestination`-typed bean exists anywhere in the context - even with the parameter/field name matched exactly to the list bean's name, i.e. **the original "name-based injection mitigates but does not eliminate this" claim in this row was itself wrong; name-based injection provides zero mitigation for this failure mode.** `fitConnectReceivingDestinations` now publishes `ReceivingDestinations` (`record ReceivingDestinations(List<ReceivingDestination> all)`, `com.gfi.ozg.fitko.spring.receive`), confirmed immune to the same reproduction; `AntragPollingService` and `FitConnectCallbackController` both take it instead of the raw list. Regression-tested: `ReceivingDestinationsAutowiringTest`. | Was: low probability, high confusion if hit - and silent (no error/warning at any point), so "confusion" undersold it. Now: closed. |
+| R3 | ~~`List<ReceivingDestination>` as a bean type.~~ **Fixed (2026-08-31).** Verified experimentally (three minimal Spring contexts, not just read from source) before fixing: a raw `List<ReceivingDestination>` bean is dropped by Spring's collection-autowiring the moment *any* `ReceivingDestination`-typed bean exists anywhere in the context - even with the parameter/field name matched exactly to the list bean's name, i.e. **the original "name-based injection mitigates but does not eliminate this" claim in this row was itself wrong; name-based injection provides zero mitigation for this failure mode.** `fitConnectReceivingDestinations` now publishes `ReceivingDestinations` (`record ReceivingDestinations(List<ReceivingDestination> all)`, `com.gfi.ozg.fitko.spring.receive`), confirmed immune to the same reproduction; `SubmissionPollingService` and `FitConnectCallbackController` both take it instead of the raw list. Regression-tested: `ReceivingDestinationsAutowiringTest`. | Was: low probability, high confusion if hit - and silent (no error/warning at any point), so "confusion" undersold it. Now: closed. |
 | R4 | **Company-scoped coordinates and package** (`com.gfi.ozg.fitko` / `com.gfi.ozg.fitko.spring`). Reasonable, but the README/H1 calls the project "fitko-spring" while the root `.project` says `fitconnect-samples` and the module lives under `java-samples/` — mixed identity. | Cosmetic; tidy up naming before any external release. |
 | R5 | **Stale skeleton directories.** `java-samples/common`, `receiver`, `sender`, `spring-boot-starter` each contain only an Eclipse `.project` file (and `.project` is in `.gitignore`, yet these are on disk). They contradict the README's "single standalone project" claim and will confuse anyone browsing the repo. | Delete them. |
 
@@ -125,8 +125,8 @@ Severity: **High** = fix before release · **Medium** = should fix · **Low** = 
 ### Medium
 
 **M1 — No observability on the receive pipeline.**
-`AntragPollingService` and `SubmissionProcessor` log at debug/warn and swallow
-`RuntimeException` (`AntragPollingService.java:102,122`, `SubmissionProcessor.java:50`).
+`SubmissionPollingService` and `SubmissionProcessor` log at debug/warn and swallow
+`RuntimeException` (`SubmissionPollingService.java:102,122`, `SubmissionProcessor.java:50`).
 There are no Micrometer metrics (submissions received, processed, failed; poll
 duration; per-destination error count) and no health indicator. For a starter
 meant to run unattended in several services, this is the biggest practical gap —
@@ -140,7 +140,7 @@ Micrometer-free callback surface the pipeline reports to, with a `NOOP`
 default) plus `MicrometerReceivePipelineMetrics` recording
 `fitconnect.receive.poll` (timer, `outcome=success|failure`),
 `fitconnect.receive.submissions.{found,processed,failed}` (counters), all
-tagged `destination`. `AntragPollingService` now also tracks the last
+tagged `destination`. `SubmissionPollingService` now also tracks the last
 successful poll per destination, exposed via a new
 `FitConnectReceiverHealthIndicator` (`fitConnectReceiver` health entry:
 `UNKNOWN` when polling disabled, `DOWN` when a destination has had no
@@ -159,7 +159,7 @@ hung network call or a blocking listener bug - may stall the poller before
 being abandoned for the cycle, and the opt-in `polling.retry-cooldown` (unset
 by default, matching the old behaviour) skips re-fetching a submission that
 failed until the configured time has passed instead of retrying it every
-single cycle. See `AntragPollingService.processWithSafeguards`/
+single cycle. See `SubmissionPollingService.processWithSafeguards`/
 `processWithTimeout` and the two properties' javadoc on
 `FitConnectProperties.Polling`.
 Still true, not addressed: there is no exponential backoff (the cooldown is a
@@ -211,19 +211,19 @@ only in a code comment.
 
 **L3 — `MetadataVersions.resolve` throws the wrong exception type, at the wrong layer.**
 `MetadataVersions.resolve` (`:18`) throws `IllegalArgumentException` for an
-unknown version string. It is called from `DefaultAntragSender.buildSubmission`
-per request, so a bad `AntragToSend.metadataVersion` surfaces as a raw
-`IllegalArgumentException` out of `AntragSender.send` — which the `AntragSender`
-javadoc doesn't list (it documents only `AntragSendException` and
+unknown version string. It is called from `DefaultSubmissionSender.buildSubmission`
+per request, so a bad `SubmissionToSend.metadataVersion` surfaces as a raw
+`IllegalArgumentException` out of `SubmissionSender.send` — which the `SubmissionSender`
+javadoc doesn't list (it documents only `SubmissionSendException` and
 `IllegalStateException`). Either validate `metadataVersion` in
-`AntragToSend.Builder.build()` (fail before the send) or wrap it in
-`AntragSendException`, and update the interface contract.
+`SubmissionToSend.Builder.build()` (fail before the send) or wrap it in
+`SubmissionSendException`, and update the interface contract.
 
-**L4 — `DefaultAntragSender` only wraps `FitConnectSenderException`.**
-`DefaultAntragSender.send` (`:43`) catches `FitConnectSenderException` and wraps
-it as `AntragSendException`. Any other unchecked SDK exception
+**L4 — `DefaultSubmissionSender` only wraps `FitConnectSenderException`.**
+`DefaultSubmissionSender.send` (`:43`) catches `FitConnectSenderException` and wraps
+it as `SubmissionSendException`. Any other unchecked SDK exception
 (`FitConnectInitialisationException`, an NPE from a malformed builder step, etc.)
-propagates raw. Probably fine, but the interface javadoc implies `AntragSendException`
+propagates raw. Probably fine, but the interface javadoc implies `SubmissionSendException`
 is *the* failure mode. Consider catching `RuntimeException` at the send boundary,
 or documenting that non-`FitConnectSenderException` errors pass through.
 
@@ -246,9 +246,9 @@ dedicated wrapper type, or at least `@ConditionalOnMissingBean(name=...)`.
 
 **L7 — A throwing (synchronous) listener blocks later listeners for that event.**
 In `SubmissionProcessor.process`, `publishEvent` runs listeners in order on the
-poll thread; the first one to throw aborts the rest for that `AntragReceivedEvent`
+poll thread; the first one to throw aborts the rest for that `SubmissionReceivedEvent`
 and the submission is treated as "leave & retry". This is defensible but
-surprising — worth a line in the `AntragReceivedEvent` javadoc (which already
+surprising — worth a line in the `SubmissionReceivedEvent` javadoc (which already
 notes synchronous execution).
 
 ### Nits
@@ -256,20 +256,20 @@ notes synchronous execution).
 - **N1** — `DataSetToSend.sha512Hex` and its test copy hand-roll hex with
   `Character.forDigit`. `java.util.HexFormat.of().formatHex(...)` (Java 17+) is
   one line. Keeping a copy in the test for independence is fine.
-- **N2** — `MetadataVersions` is `public` but used only by `DefaultAntragSender`
+- **N2** — `MetadataVersions` is `public` but used only by `DefaultSubmissionSender`
   in the same-ish area; could be package-private (move to `send`) unless it's
   intentionally part of the public surface.
-- **N3** — `AntragToSend.toString()` is hand-maintained; a `@ToString(of={...})`
+- **N3** — `SubmissionToSend.toString()` is hand-maintained; a `@ToString(of={...})`
   or a comment "keep in sync" would prevent it silently going stale.
 - **N4** — `FitConnectProperties.Polling` is a top-level nested class while
   `Callback`/`Destination` are nested under `Receiver`. `Polling` is only used by
   `Receiver` — nesting it there too would be more consistent.
 - **N5** — `pom.xml`: `maven-compiler-plugin` is pinned (good) but
   `maven-surefire-plugin` is not; pin it for reproducible test runs.
-- **N6** — `AntragPollingService.destinationIds()` uses
+- **N6** — `SubmissionPollingService.destinationIds()` uses
   `Collectors.toList()`; the codebase elsewhere is on Java 17 — `.toList()` is
-  the modern form (also `DefaultAntragSender:83`).
-- **N7** — `ReceivedAntrag.reject(List)` and `reject(Problem...)` are both
+  the modern form (also `DefaultSubmissionSender:83`).
+- **N7** — `IncomingSubmission.reject(List)` and `reject(Problem...)` are both
   public; the varargs one delegating is nice, but a zero-arg `reject()` call
   compiles and rejects with an empty problem list. Consider
   `Assert.notEmpty(problems, ...)`.
@@ -282,15 +282,15 @@ notes synchronous execution).
 |---|---|---|
 | Positional 10-arg copy of an SDK value object | `ApplicationConfigFactory.java:89` | Low |
 | `List<T>` published as a bean type (Spring autowiring ambiguity) | `FitConnectReceiverAutoConfiguration.java:63` | Low–Medium |
-| ~~Broad `catch (RuntimeException)` + log-and-swallow with no metric/backoff~~ — metrics existed already; backoff addressed by M2 (2026-08-31) | `AntragPollingService.java`, `SubmissionProcessor.java` | ~~Medium~~ |
-| Inconsistent exception typing (`IllegalArgumentException` vs `FitConnectConfigurationException` vs `AntragSendException`) | `MetadataVersions.java:18`, `DefaultAntragSender.java:43` | Low |
+| ~~Broad `catch (RuntimeException)` + log-and-swallow with no metric/backoff~~ — metrics existed already; backoff addressed by M2 (2026-08-31) | `SubmissionPollingService.java`, `SubmissionProcessor.java` | ~~Medium~~ |
+| Inconsistent exception typing (`IllegalArgumentException` vs `FitConnectConfigurationException` vs `SubmissionSendException`) | `MetadataVersions.java:18`, `DefaultSubmissionSender.java:43` | Low |
 | Duplicated literal default (`/fitconnect/callback`) | properties vs `@PostMapping` | Low |
 | Hand-rolled hex encoding | `DataSetToSend.java:40` | Nit |
 | Stale Eclipse skeleton dirs tracked in repo | `java-samples/{common,receiver,sender,spring-boot-starter}` | Low (hygiene) |
 
 No god classes, no deep inheritance, no primitive-obsession of note, no obvious
 duplication beyond the two items above, no dead code in `src/main`. Method and
-class sizes are reasonable; the longest method (`DefaultAntragSender.buildSubmission`)
+class sizes are reasonable; the longest method (`DefaultSubmissionSender.buildSubmission`)
 is a linear builder pipeline and reads fine.
 
 ---
@@ -320,15 +320,15 @@ is a linear builder pipeline and reads fine.
 
 | # | Missing coverage |
 |---|---|
-| T1 | `default-outcome=ACCEPT`/`REJECT` driven **from properties** through `SubmissionProcessor` — `ReceivedAntragTest` unit-tests `applyIfUnresolved`, and `ReceivingIntegrationTest` covers listener-driven accept/reject, but no test wires `fitconnect.receiver.default-outcome=ACCEPT` and asserts an unresolved submission is accepted. |
-| T2 | `AntragPollingService` `SmartLifecycle` — `start()`/`stop()`/`isRunning()`, and `isAutoStartup()==false` when `polling.enabled=false` (currently every integration test disables polling and calls `poll()` directly, so the scheduled path and lifecycle are never run). |
+| T1 | `default-outcome=ACCEPT`/`REJECT` driven **from properties** through `SubmissionProcessor` — `IncomingSubmissionTest` unit-tests `applyIfUnresolved`, and `ReceivingIntegrationTest` covers listener-driven accept/reject, but no test wires `fitconnect.receiver.default-outcome=ACCEPT` and asserts an unresolved submission is accepted. |
+| T2 | `SubmissionPollingService` `SmartLifecycle` — `start()`/`stop()`/`isRunning()`, and `isAutoStartup()==false` when `polling.enabled=false` (currently every integration test disables polling and calls `poll()` directly, so the scheduled path and lifecycle are never run). |
 | T3 | `fitconnect.http.*` → `HttpConfig` mapping (seconds truncation, all-unset → `null`). |
 | T4 | `Environment` overrides other than `base-urls.auth`: `base-urls.submission` (list), `allow-insecure-public-key`, `skip-submission-data-validation`, `disable-auto-reject` → `enableAutoReject=false`. |
 | T5 | Callback: malformed JSON body → 400 (`parseBody` returning `null`); valid HMAC + empty/absent `submissions` → 200 with nothing processed. |
 | T6 | `MetadataVersions.resolve` — happy path and unknown-version message. |
-| T7 | `@ConditionalOnMissingBean` override points — a consumer-supplied `AntragSender` / `SubmissionProcessor` bean wins. |
+| T7 | `@ConditionalOnMissingBean` override points — a consumer-supplied `SubmissionSender` / `SubmissionProcessor` bean wins. |
 | T8 | `pollSafely` swallow path — `poll()` throwing does not kill the scheduled task. |
-| T9 | `AntragToSend.Builder` validation (`Assert.hasText` etc.) and `AttachmentToSend.of` `UncheckedIOException` on an unreadable resource. |
+| T9 | `SubmissionToSend.Builder` validation (`Assert.hasText` etc.) and `AttachmentToSend.of` `UncheckedIOException` on an unreadable resource. |
 
 No test uses an assertion library inconsistently; AssertJ + Mockito throughout.
 Consider adding `jacoco` to make these gaps visible as a number.
@@ -342,7 +342,7 @@ Consider adding `jacoco` to make these gaps visible as a number.
   could point users at `spring-boot-starter-config-server`/Vault/env indirection
   and note that `toString()` on the properties classes (Lombok `@Getter/@Setter`,
   no `@ToString`) does *not* dump them — good that it doesn't.
-- **`AntragToSend.toString()`** deliberately prints only `destinationId`,
+- **`SubmissionToSend.toString()`** deliberately prints only `destinationId`,
   `serviceId`, `caseId` — no payload. Good.
 - **`allow-insecure-public-key`** is clearly marked "never in PROD" in three
   places. Good. Consider a startup `WARN` log when it is enabled.

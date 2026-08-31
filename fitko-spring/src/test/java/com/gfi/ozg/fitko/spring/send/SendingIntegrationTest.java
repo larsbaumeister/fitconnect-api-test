@@ -46,7 +46,7 @@ class SendingIntegrationTest {
     SenderClient senderClient;
 
     @Autowired
-    AntragSender antragSender;
+    SubmissionSender submissionSender;
 
     @Test
     void sendsToTheGivenDestination() throws FitConnectSenderException {
@@ -55,43 +55,43 @@ class SendingIntegrationTest {
         UUID caseId = UUID.randomUUID();
         when(senderClient.send(any(SendableSubmission.class))).thenReturn(new SentSubmission(destinationId, caseId, submissionId));
 
-        AntragToSend antrag = AntragToSend.builder(
+        SubmissionToSend submission = SubmissionToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, "<test>Hello</test>", URI.create("https://example.org/schema.xsd"))
                 .destinationId(destinationId)
                 .build();
 
-        SentSubmission result = antragSender.send(antrag);
+        SentSubmission result = submissionSender.send(submission);
 
         assertThat(result.getSubmissionId()).isEqualTo(submissionId);
         assertThat(result.getDestinationId()).isEqualTo(destinationId);
-        verify(senderClient).send(argThat((SendableSubmission submission) -> submission.getDestinationId().equals(destinationId)));
+        verify(senderClient).send(argThat((SendableSubmission sent) -> sent.getDestinationId().equals(destinationId)));
     }
 
     @Test
-    void rejectsAnAntragWithNoDestinationId() {
-        AntragToSend antrag = AntragToSend.builder(
+    void rejectsASubmissionWithNoDestinationId() {
+        SubmissionToSend submission = SubmissionToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.JSON, "{}", URI.create("https://example.org/schema.json"))
                 .build();
 
-        assertThatThrownBy(() -> antragSender.send(antrag))
+        assertThatThrownBy(() -> submissionSender.send(submission))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("destinationId");
     }
 
     @Test
-    void wrapsAFitConnectSenderExceptionInAnUncheckedAntragSendException() throws FitConnectSenderException {
+    void wrapsAFitConnectSenderExceptionInAnUncheckedSubmissionSendException() throws FitConnectSenderException {
         when(senderClient.send(any(SendableSubmission.class))).thenThrow(new FitConnectSenderException("boom"));
 
-        AntragToSend antrag = AntragToSend.builder(
+        SubmissionToSend submission = SubmissionToSend.builder(
                         "urn:de:fim:leika:leistung:99050035001000", "Gewerbeanmeldung",
                         DataFormat.XML, "<test/>", URI.create("https://example.org/schema.xsd"))
                 .destinationId(UUID.randomUUID())
                 .build();
 
-        assertThatThrownBy(() -> antragSender.send(antrag))
-                .isInstanceOf(AntragSendException.class)
+        assertThatThrownBy(() -> submissionSender.send(submission))
+                .isInstanceOf(SubmissionSendException.class)
                 .hasCauseInstanceOf(FitConnectSenderException.class);
     }
 }

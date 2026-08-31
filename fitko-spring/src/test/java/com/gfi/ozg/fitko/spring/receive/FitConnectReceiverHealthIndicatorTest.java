@@ -21,7 +21,7 @@ class FitConnectReceiverHealthIndicatorTest {
     private static final UUID DESTINATION_A = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
     private static final UUID DESTINATION_B = UUID.fromString("2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234");
 
-    private final AntragPollingService pollingService = mock(AntragPollingService.class);
+    private final SubmissionPollingService pollingService = mock(SubmissionPollingService.class);
     private final FitConnectReceiverHealthIndicator indicator = new FitConnectReceiverHealthIndicator(pollingService);
 
     @BeforeEach
