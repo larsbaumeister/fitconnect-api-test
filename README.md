@@ -20,6 +20,15 @@ A single standalone Maven project under [`fitko-spring/`](fitko-spring)
 - **[Architecture](fitko-spring/docs/developer/architecture.md)** — goal,
   design decisions, known limitations. Start here to work on the library.
 
+## Example application
+
+- **[`fitko-spring-sample/`](fitko-spring-sample)** — a small, complete
+  Spring Boot app that integrates the starter: a REST endpoint that sends an
+  Antrag via an injected `AntragSender`, `@AntragEventListener` handlers for
+  the receive side, an annotated `application.yaml`, and the three
+  integration-test patterns. Copy from here to bootstrap your own service.
+  `cd fitko-spring && mvn install` first, then `cd fitko-spring-sample && mvn test`.
+
 ## Prerequisites
 
 - JDK 17 or newer (Spring Boot 4's baseline)

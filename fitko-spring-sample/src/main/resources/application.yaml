@@ -1,0 +1,106 @@
+# =====================================================================
+# fitko-spring-sample configuration
+#
+# The `fitconnect.*` block below is the whole configuration surface of the
+# starter. Every key binds to
+# com.gfi.ozg.fitko.spring.FitConnectProperties - that class's javadoc is
+# the source of truth, and your IDE autocompletes every key here from the
+# metadata generated at build time.
+#
+# Full reference (defaults, which combination is required when):
+#   ../fitko-spring/docs/user/configuration.md
+# Annotated superset of this file:
+#   ../fitko-spring/docs/user/application.yaml
+#
+# This sample turns BOTH sides on. A real app usually sets
+# `sender.enabled: false` or `receiver.enabled: false`.
+#
+# It reads secrets and ids from environment variables so nothing sensitive
+# lives in the repo. Values with no `:default` are required - the app fails
+# fast at startup naming the missing one. Get a TEST client from the
+# Self-Service-Portal:
+#   https://docs.fitko.de/fit-connect/docs/getting-started/account
+# =====================================================================
+
+spring:
+  application:
+    name: fitko-spring-sample
+
+fitconnect:
+  # Master switch. false disables sending, receiving and all SDK client
+  # beans. NOTE: with it off there is no AntragSender bean, so this
+  # particular sample (which injects one) will not start - it is here for
+  # completeness, not as a "run with no setup" mode.
+  enabled: true
+
+  # TEST | STAGE | PROD - picks the SDK's built-in endpoint set.
+  environment: ${FITCONNECT_ENVIRONMENT:TEST}
+
+  # --- Sending -------------------------------------------------------------
+  sender:
+    enabled: true
+    client-id: ${FITCONNECT_SENDER_CLIENT_ID}
+    client-secret: ${FITCONNECT_SENDER_CLIENT_SECRET}
+
+  # --- Receiving ---------------------------------------------------------
+  receiver:
+    enabled: true
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+
+    # Every Zustellpunkt this app polls. One background poller handles them
+    # all. Each destination carries its OWN signing/decryption keys (it is
+    # registered with its own key pair regardless of which subscriber
+    # client polls it). Keys are any Spring Resource location - file:,
+    # classpath:, https:, ...
+    #
+    # Generate a TEST key pair with the Self-Service-Portal, see
+    #   https://docs.fitko.de/fit-connect/docs/receiving/certificate
+    destinations:
+      - id: ${FITCONNECT_DESTINATION_ID}
+        signing-key: ${FITCONNECT_SIGNING_KEY:file:./keys/signing_key.json}
+        decryption-keys:
+          - ${FITCONNECT_DECRYPTION_KEY:file:./keys/decryption_key.json}
+
+    # What happens to a downloaded submission that no listener accepted or
+    # rejected: LEAVE (default, safest - retried next poll), ACCEPT, REJECT.
+    default-outcome: LEAVE
+
+    polling:
+      enabled: true
+      initial-delay: 5s
+      interval: ${FITCONNECT_POLL_INTERVAL:15s}  # short for the demo; 30s is the default
+      # Uncomment to stop retrying a persistently failing submission every
+      # single cycle:
+      # retry-cooldown: 10m
+
+    # Optional push delivery. Needs spring-boot-starter-web (this sample has
+    # it) AND a callback-secret per destination AND the URL registered with
+    # FIT-Connect out of band. Left off here; polling covers the demo.
+    callback:
+      enabled: false
+      path: /fitconnect/callback
+
+  # HTTP client timeouts; unset keeps the SDK default of 30s.
+  http:
+    connect-timeout: 10s
+    read-timeout: 30s
+    write-timeout: 30s
+
+# fitko-spring publishes fitconnect.receive.* meters and a
+# `fitConnectReceiver` health contributor purely because
+# spring-boot-starter-actuator is on the classpath. Expose them:
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.example.gewerbeamt: DEBUG
+    # The starter's own logging - poll cycles, send/receive detail:
+    com.gfi.ozg.fitko.spring: DEBUG
