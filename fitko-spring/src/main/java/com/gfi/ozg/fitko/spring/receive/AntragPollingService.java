@@ -89,10 +89,10 @@ public class AntragPollingService implements SmartLifecycle {
     private volatile ScheduledFuture<?> scheduledTask;
     private volatile Instant startedAt;
 
-    public AntragPollingService(List<ReceivingDestination> destinations, SubmissionProcessor submissionProcessor,
+    public AntragPollingService(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
                                  FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics) {
-        this.destinations = List.copyOf(Objects.requireNonNull(destinations,
-                "fitconnect.receiver.destinations must be set to poll for submissions"));
+        this.destinations = Objects.requireNonNull(destinations,
+                "fitconnect.receiver.destinations must be set to poll for submissions").all();
         if (this.destinations.isEmpty()) {
             throw new IllegalArgumentException(
                     "fitconnect.receiver.destinations must contain at least one destination");

@@ -1,7 +1,7 @@
 package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
+import com.gfi.ozg.fitko.spring.receive.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import com.gfi.ozg.fitko.spring.receive.callback.FitConnectCallbackController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -13,8 +13,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * Registers {@link FitConnectCallbackController}, the optional webhook
@@ -52,7 +50,7 @@ public class FitConnectCallbackAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FitConnectCallbackController fitConnectCallbackController(List<ReceivingDestination> fitConnectReceivingDestinations,
+    public FitConnectCallbackController fitConnectCallbackController(ReceivingDestinations fitConnectReceivingDestinations,
                                                                        SubmissionProcessor submissionProcessor,
                                                                        ObjectMapper fitConnectCallbackObjectMapper) {
         return new FitConnectCallbackController(fitConnectReceivingDestinations, submissionProcessor, fitConnectCallbackObjectMapper);

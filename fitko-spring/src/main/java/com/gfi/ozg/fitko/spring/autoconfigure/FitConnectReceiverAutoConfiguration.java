@@ -12,6 +12,7 @@ import com.gfi.ozg.fitko.spring.receive.AntragEventListenerFactory;
 import com.gfi.ozg.fitko.spring.receive.AntragPollingService;
 import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
+import com.gfi.ozg.fitko.spring.receive.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -62,11 +63,14 @@ public class FitConnectReceiverAutoConfiguration {
         return ClientFactory::createSubscriberClient;
     }
 
+    // Published as ReceivingDestinations, a dedicated holder type, rather
+    // than a raw List<ReceivingDestination> - see that record's javadoc for
+    // why a raw List<T> bean is a Spring autowiring footgun.
     @Bean
     @ConditionalOnMissingBean
-    public List<ReceivingDestination> fitConnectReceivingDestinations(ApplicationConfig applicationConfig,
-                                                                        SubscriberClientFactory subscriberClientFactory,
-                                                                        FitConnectProperties properties) {
+    public ReceivingDestinations fitConnectReceivingDestinations(ApplicationConfig applicationConfig,
+                                                                   SubscriberClientFactory subscriberClientFactory,
+                                                                   FitConnectProperties properties) {
         List<FitConnectProperties.Receiver.Destination> configuredDestinations =
                 properties.getReceiver().getDestinations();
         if (configuredDestinations.isEmpty()) {
@@ -90,7 +94,7 @@ public class FitConnectReceiverAutoConfiguration {
             SubscriberClient client = createClient(subscriberClientFactory, destinationConfig);
             destinations.add(new ReceivingDestination(destination.getId(), client, destination.getCallbackSecret()));
         }
-        return destinations;
+        return new ReceivingDestinations(destinations);
     }
 
     @Bean
@@ -106,7 +110,7 @@ public class FitConnectReceiverAutoConfiguration {
     // fitconnect.receiver.polling.enabled) - wiring both would start it twice.
     @Bean
     @ConditionalOnMissingBean
-    public AntragPollingService antragPollingService(List<ReceivingDestination> fitConnectReceivingDestinations,
+    public AntragPollingService antragPollingService(ReceivingDestinations fitConnectReceivingDestinations,
                                                        SubmissionProcessor submissionProcessor,
                                                        FitConnectProperties properties,
                                                        ObjectProvider<ReceivePipelineMetrics> metrics) {

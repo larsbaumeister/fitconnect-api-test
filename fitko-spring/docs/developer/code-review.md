@@ -29,9 +29,9 @@ below are refinements, not blockers. The themes worth attention are:
 - **At-least-once redelivery with no de-duplication** — the default `LEAVE`
   outcome re-downloads, re-decrypts and re-publishes the same submission every
   cycle; listener idempotency is required but only lightly documented (Medium).
-- **A few brittle couplings to SDK internals** — the positional 10-arg
-  `ApplicationConfig` copy constructor, and the `List<ReceivingDestination>` bean
-  type (Low–Medium).
+- **A brittle coupling to SDK internals** — the positional 10-arg
+  `ApplicationConfig` copy constructor (Low–Medium). (The `List<ReceivingDestination>`
+  bean-type footgun this originally also named is fixed — see R3.)
 - **Library-packaging gaps** — no CI, no `-sources`/`-javadoc` jars, no
   `<scm>`/`<licenses>` in the POM, stale Eclipse skeleton directories in the repo
   (Low).
@@ -112,7 +112,7 @@ a bean — the stated goal is met.
 |---|---|---|
 | R1 | **Not published as a proper library artifact.** No `-sources`/`-javadoc` jars (POM has no `maven-source-plugin`/`maven-javadoc-plugin`), no `<scm>`, `<licenses>`, `<developers>`, `<url>` — all required for Maven Central and expected by consumers doing "go to source". No CI pipeline in the module (`.gitlab-ci.yml` present only belongs to the unrelated Docusaurus checkout under the top-level `docs/`). | A consuming team can't step into sources in their IDE; can't verify the build reproducibly. |
 | R2 | **Standalone POM, no `<parent>`, no BOM import for consumers.** Fine as a "clone and `mvn package`" sample, but a consuming multi-module build gets no dependency-version alignment from it (it also can't, since it pins Spring Boot 4.1.1 itself — a version skew between the starter's transitive Boot and the consumer's Boot is possible). | Version-skew risk if the consumer is on a different Boot 4.x patch. Consider documenting the supported Boot range. |
-| R3 | **`List<ReceivingDestination>` as a bean type.** `fitConnectReceivingDestinations` is a `@Bean` of type `List<ReceivingDestination>`, injected by name into the poller and the callback controller. This is a known Spring ambiguity: if any consumer ever declares a single `ReceivingDestination` `@Bean`, autowiring `List<ReceivingDestination>` flips to "collection of matching beans" and silently drops the configured list. Name-based injection mitigates but does not eliminate this. | Low probability, high confusion if hit. A dedicated holder type (`record ReceivingDestinations(List<ReceivingDestination> all)`) removes the footgun. |
+| R3 | ~~`List<ReceivingDestination>` as a bean type.~~ **Fixed (2026-08-31).** Verified experimentally (three minimal Spring contexts, not just read from source) before fixing: a raw `List<ReceivingDestination>` bean is dropped by Spring's collection-autowiring the moment *any* `ReceivingDestination`-typed bean exists anywhere in the context - even with the parameter/field name matched exactly to the list bean's name, i.e. **the original "name-based injection mitigates but does not eliminate this" claim in this row was itself wrong; name-based injection provides zero mitigation for this failure mode.** `fitConnectReceivingDestinations` now publishes `ReceivingDestinations` (`record ReceivingDestinations(List<ReceivingDestination> all)`, `com.gfi.ozg.fitko.spring.receive`), confirmed immune to the same reproduction; `AntragPollingService` and `FitConnectCallbackController` both take it instead of the raw list. Regression-tested: `ReceivingDestinationsAutowiringTest`. | Was: low probability, high confusion if hit - and silent (no error/warning at any point), so "confusion" undersold it. Now: closed. |
 | R4 | **Company-scoped coordinates and package** (`com.gfi.ozg.fitko` / `com.gfi.ozg.fitko.spring`). Reasonable, but the README/H1 calls the project "fitko-spring" while the root `.project` says `fitconnect-samples` and the module lives under `java-samples/` — mixed identity. | Cosmetic; tidy up naming before any external release. |
 | R5 | **Stale skeleton directories.** `java-samples/common`, `receiver`, `sender`, `spring-boot-starter` each contain only an Eclipse `.project` file (and `.project` is in `.gitignore`, yet these are on disk). They contradict the README's "single standalone project" claim and will confuse anyone browsing the repo. | Delete them. |
 
@@ -376,7 +376,7 @@ Consider adding `jacoco` to make these gaps visible as a number.
 **Worth doing, not urgent:**
 
 6. **(M4)** Fix the misleading "stays on the delivery service" log.
-7. **(R3)** Replace the `List<ReceivingDestination>` bean with a holder type.
+7. ~~**(R3)** Replace the `List<ReceivingDestination>` bean with a holder type.~~ Done.
 8. **(L1)** File an upstream SDK request for `ApplicationConfig.toBuilder()` /
    `withSubscriberConfig`; pin the verified SDK version in the workaround comment.
 9. **(T1–T3, T8)** Close the highest-value test gaps (default-outcome from

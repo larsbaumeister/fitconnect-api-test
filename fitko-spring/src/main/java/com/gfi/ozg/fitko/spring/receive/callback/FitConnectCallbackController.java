@@ -7,6 +7,7 @@ import dev.fitko.fitconnect.api.domain.model.callback.NewEventsCallback;
 import dev.fitko.fitconnect.api.domain.model.submission.SubmissionForPickup;
 import dev.fitko.fitconnect.api.domain.validation.ValidationResult;
 import com.gfi.ozg.fitko.spring.receive.ReceivingDestination;
+import com.gfi.ozg.fitko.spring.receive.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -52,9 +53,9 @@ public class FitConnectCallbackController {
     private final SubmissionProcessor submissionProcessor;
     private final ObjectMapper objectMapper;
 
-    public FitConnectCallbackController(List<ReceivingDestination> destinations, SubmissionProcessor submissionProcessor,
+    public FitConnectCallbackController(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
                                          ObjectMapper objectMapper) {
-        this.destinationsById = destinations.stream()
+        this.destinationsById = destinations.all().stream()
                 .collect(Collectors.toUnmodifiableMap(ReceivingDestination::destinationId, d -> d));
         this.submissionProcessor = Objects.requireNonNull(submissionProcessor, "submissionProcessor must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");

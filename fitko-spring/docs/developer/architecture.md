@@ -77,6 +77,18 @@ just no bean, when it isn't.
 - **Fail-fast config.** A missing/invalid property throws
   `FitConnectConfigurationException` at context-refresh time, with a
   property-path message — never mid-request.
+- **`ReceivingDestinations`, not `List<ReceivingDestination>`, as the bean
+  type.** A raw `List<T>` bean is a Spring footgun: `List<T>` injection points
+  are special-cased to mean "collect every bean of type `T`", and that branch
+  runs unconditionally, never considering a bean whose own type happens to be
+  `List<T>`. So the moment any `ReceivingDestination`-typed bean exists
+  anywhere in the context — a consumer's own, unrelated-looking `@Bean` — every
+  injection point would silently see only that stray bean instead of the
+  configured destinations, no error or warning ever (name-based injection does
+  **not** help - verified experimentally, see `ReceivingDestinations`'
+  javadoc). `AntragPollingService` and `FitConnectCallbackController` both
+  take `ReceivingDestinations` for exactly this reason - don't revert either
+  back to a raw `List<ReceivingDestination>` parameter.
 
 ## Delivery semantics (read before touching receive-side code)
 
@@ -106,10 +118,6 @@ see `code-review.md` M4 before changing that code path.
   way to run independent submissions concurrently within a cycle.
 - One page per destination per cycle (`polling.limit`, default 100); a
   backlog beyond that drains at `limit`/`interval`.
-- `List<ReceivingDestination>` is published as a bean type — a consumer
-  declaring their own single `ReceivingDestination` bean would flip Spring's
-  autowiring from "the configured list" to "matching beans" and silently drop
-  it. Name-based injection mitigates but doesn't eliminate this.
 - `base-urls`/boolean overrides (`allow-insecure-public-key`, etc.) can only
   force a custom environment's default to `true`, never back to `false`
   (`Environment.merge` treats `null` as "fall through").
@@ -122,7 +130,7 @@ covers, then note there if something changed).
 
 Every bean is `@ConditionalOnMissingBean` — declare your own of the same type
 to replace it: `SenderClient`, `AntragSender`, `SubscriberClientFactory`,
-`List<ReceivingDestination>`, `SubmissionProcessor`, `AntragPollingService`,
+`ReceivingDestinations`, `SubmissionProcessor`, `AntragPollingService`,
 `ReceivePipelineMetrics`, `FitConnectReceiverHealthIndicator`,
 `fitConnectCallbackObjectMapper`.
 
