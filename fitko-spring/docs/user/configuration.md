@@ -110,6 +110,7 @@ separate legal entity's own registration).
 | `polling.limit` | int | `100` | Paging limit per destination per poll cycle. |
 | `polling.submission-timeout` | `Duration` | `10s` | Max time to download/decrypt/publish/handle *one* submission before it's abandoned for this cycle and counted as a failure. Always on - protects the single poller thread against a hung network call or a blocking bug in a listener. Enforced via `Thread.interrupt()` on a best-effort basis: a listener stuck in an uninterruptible loop keeps its worker thread alive until it eventually returns on its own. |
 | `polling.retry-cooldown` | `Duration` | unset (off) | Opt-in. When set, a submission that failed (including a `submission-timeout` timeout) is not re-fetched until this much time has passed - instead of being retried on every single cycle. Nothing is rejected; the submission still just sits on the delivery service. Unset (the default) is the original behaviour: every failure is retried next cycle, forever. |
+| `polling.retry-cooldown-cache-name` | string | `fitconnect-retry-cooldown` | Only relevant when `retry-cooldown` is set. Name of the Spring `Cache` the cooldown state (one entry per currently-failing submission id, value = ISO-8601 last-failure timestamp) is kept in. If your application has a `CacheManager`, define a cache of this name there - back it with Redis (TTL ≥ `retry-cooldown`) and the cooldown is shared across replicas. With no `CacheManager`, a self-pruning in-process cache is used and this name is cosmetic. |
 
 A `Duration` property accepts a plain suffixed value (`10s`, `5m`, `500ms`)
 or ISO-8601 (`PT10S`); a bare number is interpreted as milliseconds.
@@ -123,6 +124,43 @@ bug) hits the timeout or fails fast, then `retry-cooldown` (if configured)
 stops it from re-consuming part of every subsequent cycle. See "Known
 limitations" in `docs/developer/architecture.md` for the underlying
 single-threaded-poller trade-off these mitigate.
+
+The cooldown state lives in a Spring `Cache` (see
+`polling.retry-cooldown-cache-name`). An entry is removed when the submission
+succeeds **and** once its cooldown has elapsed, and the in-process fallback
+also prunes by age - so a submission that fails once and then leaves the
+delivery service without ever succeeding again does not keep an entry
+around.
+
+### `fitconnect.receiver.polling.distributed-lock.*` (optional)
+
+By default every replica of your application polls every destination
+independently. Until a submission is accepted or rejected, each replica
+lists it and (with `default-outcome: LEAVE`) fully re-downloads,
+re-decrypts and re-publishes it on every one of its own cycles - roughly
+N times the work for N replicas. Idempotent listeners make this safe, but
+it is wasteful.
+
+Add [ShedLock](https://github.com/lukas-krecan/ShedLock) to opt into
+one-replica-at-a-time polling:
+
+1. Put `net.javacrumbs.shedlock:shedlock-core` on the classpath (it is an
+   optional dependency of this starter).
+2. Declare a `net.javacrumbs.shedlock.core.LockProvider` bean - you pick the
+   backend (JDBC, Redis, Mongo, ...); see the ShedLock docs.
+
+The poller then acquires one lock per poll cycle; a replica that cannot get
+the lock skips that cycle and tries again next `interval`. The lock name is
+derived from the configured destination-id set, so two applications polling
+**different** destinations never block each other. The callback webhook
+endpoint is never gated by this lock, and nothing happens when
+`polling.enabled=false`.
+
+| Property | Type | Default | Notes |
+|---|---|---|---|
+| `polling.distributed-lock.enabled` | boolean | `true` | `false` keeps ShedLock on the classpath but does not gate polling with it. Has no effect unless a `LockProvider` bean is present. |
+| `polling.distributed-lock.lock-at-most-for` | `Duration` | `10 × interval` | Safety-net upper bound: how long the lock stays held if the replica holding it dies mid-cycle without releasing it. Too low lets a second replica start overlapping a legitimately long cycle; too high stalls polling fleet-wide after a hard crash. |
+| `polling.distributed-lock.lock-at-least-for` | `Duration` | `interval` | Lower bound the lock is held for even when a cycle finishes sooner - this is what actually spaces polls out across the fleet. Setting it larger than `interval` effectively pins polling to one replica. |
 
 ### Observability of the receive pipeline (optional)
 

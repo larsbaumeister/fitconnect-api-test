@@ -33,6 +33,14 @@
          explicit here too since annotationProcessorPaths below needs one. -->
     <lombok.version>1.18.46</lombok.version>
 
+    <!-- Optional, opt-in multi-replica poll coordination. Not managed by
+         spring-boot-dependencies, so pinned here. 7.x targets JDK 17 (this
+         module's baseline); the net.javacrumbs.shedlock.core LockProvider /
+         LockConfiguration(Instant, String, Duration, Duration) / SimpleLock
+         API used here has been stable across ShedLock 4-7.
+         See https://github.com/lukas-krecan/ShedLock/releases for newer releases -->
+    <shedlock.version>7.9.0</shedlock.version>
+
     <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
   </properties>
 
@@ -103,6 +111,23 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Optional: opt-in multi-replica poll coordination
+         (fitconnect.receiver.polling.distributed-lock). Active only when the
+         consumer puts shedlock-core on their classpath AND declares a
+         net.javacrumbs.shedlock.core.LockProvider bean (JDBC/Redis/Mongo/...).
+         FitConnectPollLockAutoConfiguration is @ConditionalOnClass(LockProvider)
+         gated, so a consumer that doesn't want it pulls in nothing and sees no
+         behaviour change. shedlock-core's only runtime transitive dependency is
+         slf4j-api, already present; shedlock-spring (the @SchedulerLock AOP
+         path) is deliberately not used - this drives the programmatic
+         LockProvider API directly from the poller's own scheduler. -->
+    <dependency>
+      <groupId>net.javacrumbs.shedlock</groupId>
+      <artifactId>shedlock-core</artifactId>
+      <version>${shedlock.version}</version>
       <optional>true</optional>
     </dependency>
 

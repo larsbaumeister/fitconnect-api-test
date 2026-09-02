@@ -1,6 +1,7 @@
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectSenderAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiveMetricsAutoConfiguration
+com.gfi.ozg.fitko.spring.autoconfigure.FitConnectPollLockAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiverAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiveHealthAutoConfiguration
 com.gfi.ozg.fitko.spring.autoconfigure.FitConnectCallbackAutoConfiguration

@@ -110,6 +110,14 @@ re-decrypted, re-published — until something calls `accept()`/`reject()`.
 `fitconnect.receiver.default-outcome` decides what happens when nothing does
 (default `LEAVE`, safest).
 
+**Running multiple replicas?** Every replica polls the same destinations
+independently, so an unresolved submission is downloaded and published once
+per replica per cycle (idempotent listeners make this safe, just wasteful).
+To have only one replica poll at a time, add
+[ShedLock](https://github.com/lukas-krecan/ShedLock) and a `LockProvider`
+bean — see
+[`configuration.md`](configuration.md#fitconnectreceiverpollingdistributed-lock-optional).
+
 Receiving on several destinations? Use `@SubmissionEventListener` instead of
 `@EventListener` for a handler per Leistung — other listeners still see every
 submission, filtered or not:
@@ -161,9 +169,25 @@ that destination's `Callback` with FIT-Connect (`callbackSecret` matching the
 one above) — a one-time step via `DestinationClient`, outside this starter's
 scope (see [Out of scope](#out-of-scope)). Same event/listener handling as
 polling: a callback is a notification, not a delivery, so it's downloaded and
-decrypted through the same pipeline. Needs `spring-boot-starter-web` on the
-classpath; without it, `callback.enabled=true` is a no-op. Polling keeps
-running regardless, so a missed callback is still picked up next poll cycle.
+decrypted through the same pipeline. Needs `spring-boot-starter-web` and a
+**servlet** web application (Spring MVC / Tomcat); without it,
+`callback.enabled=true` is a no-op — see [Web stack](#web-stack). Polling
+keeps running regardless, so a missed callback is still picked up next poll
+cycle.
+
+### Web stack
+
+Sending and polling-based receiving — plus the metrics and health
+integrations — have **no servlet or web dependency**. This starter runs
+unchanged in a Spring WebFlux (Netty) application, or one with no web layer
+at all: `spring-boot-starter-web` is an optional dependency and is never
+pulled onto your classpath, so nothing here forces Tomcat.
+
+The one exception is the **callback webhook** above: it is a `@RestController`
+gated on a servlet web application (`@ConditionalOnWebApplication(type =
+SERVLET)`) and performs a blocking submission download inline, so it does not
+activate on a reactive stack. A WebFlux application should receive via
+polling.
 
 ## Testing your integration
 

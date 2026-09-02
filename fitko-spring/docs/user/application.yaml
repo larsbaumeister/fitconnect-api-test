@@ -95,6 +95,17 @@ fitconnect:
       # Opt-in: a failed submission is otherwise retried every single cycle,
       # forever. Uncomment to instead back off for a while after a failure.
       # retry-cooldown: 20m
+      # Name of the Spring Cache the retry-cooldown state is kept in. Back it
+      # with Redis (TTL >= retry-cooldown) to share cooldowns across replicas;
+      # otherwise a self-pruning in-process cache is used.
+      # retry-cooldown-cache-name: fitconnect-retry-cooldown
+      # Opt-in: with ShedLock (net.javacrumbs.shedlock:shedlock-core) on the
+      # classpath and a LockProvider bean, only one replica runs any given
+      # poll cycle instead of every replica re-downloading every submission.
+      # distributed-lock:
+      #   enabled: true
+      #   lock-at-most-for: 5m   # default: 10 x interval
+      #   lock-at-least-for: 30s  # default: interval
 
     # Optional webhook endpoint FIT-Connect can push new-submission
     # notifications to, instead of waiting for the next poll. Off by

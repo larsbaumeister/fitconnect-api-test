@@ -2,19 +2,28 @@ package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import dev.fitko.fitconnect.client.SenderClient;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
+import com.gfi.ozg.fitko.spring.receive.CacheRetryCooldownStore;
+import com.gfi.ozg.fitko.spring.receive.PollCycleGate;
+import com.gfi.ozg.fitko.spring.receive.RetryCooldownStore;
+import com.gfi.ozg.fitko.spring.receive.ShedLockPollCycleGate;
 import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import com.gfi.ozg.fitko.spring.receive.FitConnectReceiverHealthIndicator;
 import com.gfi.ozg.fitko.spring.receive.MicrometerReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.SubscriberClientFactory;
 import com.gfi.ozg.fitko.spring.send.SubmissionSender;
+import com.gfi.ozg.fitko.spring.support.InMemoryLockProvider;
 import com.gfi.ozg.fitko.spring.support.TestJwkKeys;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 
 import java.nio.file.Path;
 
@@ -35,6 +44,7 @@ class FitConnectAutoConfigurationTest {
                     FitConnectAutoConfiguration.class,
                     FitConnectSenderAutoConfiguration.class,
                     FitConnectReceiveMetricsAutoConfiguration.class,
+                    FitConnectPollLockAutoConfiguration.class,
                     FitConnectReceiverAutoConfiguration.class,
                     FitConnectReceiveHealthAutoConfiguration.class));
 
@@ -149,5 +159,60 @@ class FitConnectAutoConfigurationTest {
                 .run(context -> assertThat(context).hasFailed()
                         .getFailure().rootCause().isInstanceOf(FitConnectConfigurationException.class)
                         .hasMessageContaining("fitconnect.sender.client-id"));
+    }
+
+    @Test
+    void contributesNoRetryCooldownStoreWhenTheCooldownIsUnset() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .run(context -> assertThat(context).doesNotHaveBean(RetryCooldownStore.class));
+    }
+
+    @Test
+    void usesAnInProcessRetryCooldownStoreWhenTheCooldownIsSetWithoutACacheManager() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withPropertyValues("fitconnect.receiver.polling.retry-cooldown=20m")
+                .run(context -> assertThat(context.getBean(RetryCooldownStore.class))
+                        .isInstanceOf(CacheRetryCooldownStore.class));
+    }
+
+    @Test
+    void backsTheRetryCooldownStoreWithTheApplicationsCacheManagerWhenOnePublishesTheNamedCache() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withPropertyValues("fitconnect.receiver.polling.retry-cooldown=20m")
+                .withBean(CacheManager.class,
+                        () -> new ConcurrentMapCacheManager(RetryCooldownStore.CACHE_NAME))
+                .run(context -> assertThat(context).hasSingleBean(RetryCooldownStore.class)
+                        .getBean(RetryCooldownStore.class).isInstanceOf(CacheRetryCooldownStore.class));
+    }
+
+    @Test
+    void contributesNoPollCycleGateWhenNoLockProviderBeanExists() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .run(context -> assertThat(context).doesNotHaveBean(PollCycleGate.class)
+                        .hasSingleBean(SubmissionPollingService.class));
+    }
+
+    @Test
+    void wiresAShedLockPollCycleGateWhenALockProviderBeanIsPresent() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withBean(LockProvider.class, InMemoryLockProvider::new)
+                .run(context -> assertThat(context.getBean(PollCycleGate.class))
+                        .isInstanceOf(ShedLockPollCycleGate.class));
+    }
+
+    @Test
+    void doesNotGatePollingWhenDistributedLockIsExplicitlyDisabled() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withPropertyValues("fitconnect.receiver.polling.distributed-lock.enabled=false")
+                .withBean(LockProvider.class, InMemoryLockProvider::new)
+                .run(context -> assertThat(context).doesNotHaveBean(PollCycleGate.class));
+    }
+
+    @Test
+    void pollLockAutoConfigurationBacksOffWhenShedLockIsNotOnTheClasspath() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withClassLoader(new FilteredClassLoader(LockProvider.class))
+                .run(context -> assertThat(context).doesNotHaveBean(PollCycleGate.class)
+                        .hasSingleBean(SubmissionPollingService.class));
     }
 }

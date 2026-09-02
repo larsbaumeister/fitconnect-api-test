@@ -88,6 +88,11 @@ below are refinements, not blockers. The themes worth attention are:
    There is no "seen submission" tracking or short-term suppression.
    *Recommendation:* call out idempotency prominently in `docs/configuration.md`,
    and consider an optional in-memory de-dupe window keyed by submission id.
+   *Update (2026-09-02):* the multi-replica case (every replica re-downloading
+   the same queue) is now mitigable via the opt-in
+   `polling.distributed-lock.*` ShedLock gate (`PollCycleGate` /
+   `ShedLockPollCycleGate`) - it serialises whole poll cycles across
+   replicas. Single-instance re-download on `LEAVE` is unchanged.
 
 3. **One page per poll cycle.** `poll()` fetches `offset 0, limit=polling.limit`
    (default 100) once per destination per cycle. If more than `limit` submissions
@@ -167,6 +172,15 @@ fixed delay), no true dead-letter path, and no way to auto-`reject()` a
 chronically-failing submission - `retry-cooldown` only spaces out retries, it
 never gives up on one. `default-outcome: REJECT` remains all-or-nothing and
 applies to *unresolved* (not *failed*) submissions.
+
+**Update (2026-09-02).** The retry-cooldown state moved off the in-memory
+`ConcurrentMap` onto the Spring `Cache` abstraction (`RetryCooldownStore` /
+`CacheRetryCooldownStore`): a consumer's `CacheManager` (e.g. Redis) is used
+when present, so the cooldown is shared across replicas, otherwise a
+self-pruning in-process fallback. Entries are now also evicted once the
+cooldown elapses, not only on a later success - closing the slow leak where a
+submission that failed once and then left the delivery service kept its map
+entry forever.
 
 **M3 — Listener idempotency requirement is under-documented.** See §4 point 2.
 This is a correctness trap for consumers, not just a doc nicety — promote it to a

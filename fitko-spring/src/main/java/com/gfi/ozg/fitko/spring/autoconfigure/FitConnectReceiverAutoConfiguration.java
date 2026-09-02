@@ -8,6 +8,9 @@ import dev.fitko.fitconnect.client.bootstrap.ClientFactory;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.config.ApplicationConfigFactory;
+import com.gfi.ozg.fitko.spring.receive.CacheRetryCooldownStore;
+import com.gfi.ozg.fitko.spring.receive.PollCycleGate;
+import com.gfi.ozg.fitko.spring.receive.RetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.SubmissionEventListenerFactory;
 import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
@@ -21,9 +24,12 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -104,6 +110,33 @@ public class FitConnectReceiverAutoConfiguration {
         return new SubmissionProcessor(eventPublisher, properties.getReceiver(), resolveMetrics(metrics));
     }
 
+    // Retry-cooldown state on the Spring Cache abstraction. Only created when
+    // fitconnect.receiver.polling.retry-cooldown is set (otherwise the poller
+    // gets RetryCooldownStore.NONE and the feature costs nothing). Uses the
+    // application's own CacheManager (e.g. Redis, shared across replicas) if
+    // there is one; falls back to a self-pruning in-process cache otherwise,
+    // so dev setups need no extra infrastructure. No @EnableCaching here - we
+    // only consume a CacheManager, never enable caching proxies.
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "fitconnect.receiver.polling", name = "retry-cooldown")
+    public RetryCooldownStore fitConnectRetryCooldownStore(FitConnectProperties properties,
+                                                           ObjectProvider<CacheManager> cacheManager) {
+        FitConnectProperties.Polling polling = properties.getReceiver().getPolling();
+        Duration cooldown = polling.getRetryCooldown();
+        String cacheName = polling.getRetryCooldownCacheName();
+        CacheManager manager = cacheManager.getIfAvailable();
+        Cache cache = manager != null ? manager.getCache(cacheName) : null;
+        if (cache != null) {
+            return new CacheRetryCooldownStore(cache, cooldown);
+        }
+        if (manager != null) {
+            log.info("No cache named '{}' in the configured CacheManager; using an in-process "
+                    + "fallback for retry-cooldown state (not shared across replicas)", cacheName);
+        }
+        return CacheRetryCooldownStore.withInProcessFallback(cacheName, cooldown);
+    }
+
     // No initMethod/destroyMethod here: SubmissionPollingService implements
     // SmartLifecycle itself, so the container already calls start()/stop()
     // at the right point (start() honours isAutoStartup(), i.e.
@@ -113,9 +146,13 @@ public class FitConnectReceiverAutoConfiguration {
     public SubmissionPollingService submissionPollingService(ReceivingDestinations fitConnectReceivingDestinations,
                                                        SubmissionProcessor submissionProcessor,
                                                        FitConnectProperties properties,
-                                                       ObjectProvider<ReceivePipelineMetrics> metrics) {
+                                                       ObjectProvider<ReceivePipelineMetrics> metrics,
+                                                       ObjectProvider<RetryCooldownStore> retryCooldownStore,
+                                                       ObjectProvider<PollCycleGate> pollCycleGate) {
         return new SubmissionPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver(),
-                resolveMetrics(metrics));
+                resolveMetrics(metrics),
+                retryCooldownStore.getIfAvailable(() -> RetryCooldownStore.NONE),
+                pollCycleGate.getIfAvailable(() -> PollCycleGate.DIRECT));
     }
 
     // Micrometer is optional: FitConnectReceiveMetricsAutoConfiguration only

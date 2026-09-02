@@ -45,7 +45,10 @@ import java.util.concurrent.TimeoutException;
  * a destination with {@code fitconnect.receiver.callback.enabled} and its
  * own {@code callback-secret} configured is still polled here too - a missed
  * or failed callback delivery is simply picked up on the next poll cycle
- * instead of being lost.
+ * instead of being lost. When the optional ShedLock integration is wired
+ * (see {@code FitConnectPollLockAutoConfiguration}), only <em>polling</em>
+ * is coordinated across replicas via {@link PollCycleGate}; the callback
+ * endpoint is never gated by that lock.
  *
  * <p>Per-cycle timings and counts are reported to {@link ReceivePipelineMetrics}
  * (a no-op unless Micrometer is on the classpath), and the timestamp of the
@@ -60,7 +63,10 @@ import java.util.concurrent.TimeoutException;
  * polling.retry-cooldown} (unset by default, i.e. off) skips re-fetching a
  * submission that failed until the configured time has passed instead of
  * retrying it every single cycle. See each property's javadoc on {@link
- * com.gfi.ozg.fitko.spring.FitConnectProperties.Polling}.
+ * com.gfi.ozg.fitko.spring.FitConnectProperties.Polling}. The retry-cooldown
+ * failure timestamps are held in a Spring {@link org.springframework.cache.Cache}
+ * (see {@link RetryCooldownStore}), so they can be backed by Redis and shared
+ * across replicas, and are pruned once the cooldown elapses.
  */
 @Slf4j
 public class SubmissionPollingService implements SmartLifecycle {
@@ -73,12 +79,10 @@ public class SubmissionPollingService implements SmartLifecycle {
 
     private final ConcurrentMap<UUID, Instant> lastSuccessfulPollByDestination = new ConcurrentHashMap<>();
 
-    // Only ever holds entries for submissions currently in a failed state:
-    // cleared on success, overwritten on a repeat failure, and (when a
-    // submission's cooldown has elapsed) pruned the next time it's checked -
-    // so it stays bounded by the number of *currently* outstanding failing
-    // submissions, not by everything ever seen.
-    private final ConcurrentMap<UUID, Instant> lastFailureBySubmission = new ConcurrentHashMap<>();
+    // Retry-cooldown bookkeeping for polling.retry-cooldown. RetryCooldownStore.NONE
+    // (a no-op) whenever the property is unset, so the feature costs nothing then;
+    // otherwise a Spring Cache-backed store that can be shared across replicas.
+    private final RetryCooldownStore retryCooldownStore;
 
     // Each submission runs on its own short-lived worker thread so poll()
     // can bound it with a timeout (see processWithTimeout) without touching
@@ -86,11 +90,17 @@ public class SubmissionPollingService implements SmartLifecycle {
     // waits for one submission before starting the next.
     private final ExecutorService submissionExecutor;
 
+    // Wraps each scheduled poll cycle. PollCycleGate.DIRECT (run it straight
+    // away) unless the optional ShedLock integration is wired, in which case
+    // only one replica runs any given cycle. See FitConnectPollLockAutoConfiguration.
+    private final PollCycleGate pollCycleGate;
+
     private volatile ScheduledFuture<?> scheduledTask;
     private volatile Instant startedAt;
 
     public SubmissionPollingService(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
-                                 FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics) {
+                                 FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics,
+                                 RetryCooldownStore retryCooldownStore, PollCycleGate pollCycleGate) {
         this.destinations = Objects.requireNonNull(destinations,
                 "fitconnect.receiver.destinations must be set to poll for submissions").all();
         if (this.destinations.isEmpty()) {
@@ -100,6 +110,8 @@ public class SubmissionPollingService implements SmartLifecycle {
         this.submissionProcessor = Objects.requireNonNull(submissionProcessor, "submissionProcessor must not be null");
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
+        this.retryCooldownStore = Objects.requireNonNull(retryCooldownStore, "retryCooldownStore must not be null");
+        this.pollCycleGate = Objects.requireNonNull(pollCycleGate, "pollCycleGate must not be null");
         this.scheduler = Executors.newSingleThreadScheduledExecutor(SubmissionPollingService::newDaemonThread);
         this.submissionExecutor = Executors.newCachedThreadPool(SubmissionPollingService::newSubmissionWorkerThread);
     }
@@ -143,9 +155,11 @@ public class SubmissionPollingService implements SmartLifecycle {
         submissionExecutor.shutdownNow();
     }
 
-    private void pollSafely() {
+    // Package-private so a test can exercise the PollCycleGate wrapper; the
+    // integration tests still call poll() directly, which bypasses the gate.
+    void pollSafely() {
         try {
-            poll();
+            pollCycleGate.runPollCycle(this::poll);
         } catch (RuntimeException e) {
             // Should not normally trigger - poll() already isolates failures
             // per destination - but a scheduled task must never die either way.
@@ -185,34 +199,19 @@ public class SubmissionPollingService implements SmartLifecycle {
     }
 
     /**
-     * Applies {@code polling.retry-cooldown} (skip if this submission failed
-     * too recently), then runs it through {@link #processWithTimeout}, then
-     * updates the cooldown state from the outcome. A no-op wrapper around a
-     * straight call to {@code submissionProcessor.process} whenever {@code
-     * polling.retry-cooldown} is unset - the default, unchanged behaviour.
+     * Applies {@code polling.retry-cooldown} via {@link RetryCooldownStore}
+     * (skip if this submission failed too recently), then runs it through
+     * {@link #processWithTimeout}, then feeds the outcome back to the store.
+     * With {@code polling.retry-cooldown} unset the store is {@link
+     * RetryCooldownStore#NONE} and this is a straight call to {@code
+     * submissionProcessor.process} - the default, unchanged behaviour.
      */
     private void processWithSafeguards(UUID destinationId, SubscriberClient client, UUID submissionId) {
-        Duration cooldown = receiverProperties.getPolling().getRetryCooldown();
-        if (cooldown != null) {
-            Instant lastFailure = lastFailureBySubmission.get(submissionId);
-            if (lastFailure != null) {
-                Instant retryAt = lastFailure.plus(cooldown);
-                if (Instant.now().isBefore(retryAt)) {
-                    log.debug("Submission {} failed before {}, skipping until its {} retry-cooldown elapses at {}",
-                            submissionId, lastFailure, cooldown, retryAt);
-                    return;
-                }
-            }
+        if (retryCooldownStore.isCoolingDown(submissionId)) {
+            return;
         }
-
         boolean succeeded = processWithTimeout(destinationId, client, submissionId);
-        if (cooldown != null) {
-            if (succeeded) {
-                lastFailureBySubmission.remove(submissionId);
-            } else {
-                lastFailureBySubmission.put(submissionId, Instant.now());
-            }
-        }
+        retryCooldownStore.recordOutcome(submissionId, succeeded);
     }
 
     /**

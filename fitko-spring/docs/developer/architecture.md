@@ -44,6 +44,7 @@ FitConnectAutoConfiguration (core)
  ├─ FitConnectSenderAutoConfiguration        (fitconnect.sender.enabled)
  └─ FitConnectReceiverAutoConfiguration      (fitconnect.receiver.enabled)
      ├─ FitConnectReceiveMetricsAutoConfiguration  (before receiver; needs Micrometer on classpath)
+     ├─ FitConnectPollLockAutoConfiguration         (before receiver; needs shedlock-core + a LockProvider bean)
      ├─ FitConnectReceiveHealthAutoConfiguration    (after receiver; needs Actuator health API)
      └─ FitConnectCallbackAutoConfiguration         (after receiver; needs spring-boot-starter-web + callback.enabled=true)
 ```
@@ -74,6 +75,23 @@ just no bean, when it isn't.
 - **Poller = `SmartLifecycle` on its own daemon thread**, not the app's
   `TaskScheduler`. `isAutoStartup()` follows `polling.enabled`. `@PreDestroy`
   and `stop()` are deliberately not both wired to avoid a double-stop.
+- **Retry-cooldown state = a Spring `Cache`, not an in-memory map.**
+  `RetryCooldownStore` (default `CacheRetryCooldownStore`) keeps one entry per
+  currently-failing submission id in a `Cache` named `fitconnect-retry-cooldown`
+  - a consumer's `CacheManager` (Redis, ...) if there is one, so the cooldown
+    is shared across replicas; otherwise `ExpiringConcurrentMapCache`, a
+    self-pruning in-process fallback (no `@EnableCaching`, no extra
+    dependency). The "has the cooldown elapsed?" check is still an explicit
+    `lastFailure + cooldown` comparison in code, so correctness never depends
+    on the cache honouring a TTL. With `polling.retry-cooldown` unset the
+    poller gets `RetryCooldownStore.NONE` and this is all inert.
+- **Multi-replica poll coordination = programmatic ShedLock behind
+  `PollCycleGate`.** `PollCycleGate.DIRECT` (run the cycle immediately) unless
+  `FitConnectPollLockAutoConfiguration` is active - `@ConditionalOnClass(LockProvider)`
+  plus a consumer `LockProvider` bean - in which case `ShedLockPollCycleGate`
+  holds one lock per poll cycle so only one replica polls at a time. The
+  poller depends only on the `PollCycleGate` interface, never on
+  `net.javacrumbs.shedlock`. Callbacks are never gated.
 - **Fail-fast config.** A missing/invalid property throws
   `FitConnectConfigurationException` at context-refresh time, with a
   property-path message — never mid-request.
@@ -95,7 +113,9 @@ just no bean, when it isn't.
 At-least-once, no de-duplication. With the default `default-outcome: LEAVE`,
 an unresolved submission is fully re-downloaded, re-decrypted, re-validated,
 and re-published on every poll cycle — **listeners must be idempotent**, this
-is a hard requirement, not a suggestion.
+is a hard requirement, not a suggestion. The optional ShedLock gate (see
+"Key design decisions") cuts the cross-replica ~N× re-download when running
+several replicas, but does not change the at-least-once / no-dedup contract.
 
 Auto-reject is on by default (`disable-auto-reject=false`): a
 validation/malware/decryption failure inside `requestSubmission` rejects the
@@ -118,9 +138,19 @@ see `code-review.md` M4 before changing that code path.
   way to run independent submissions concurrently within a cycle.
 - One page per destination per cycle (`polling.limit`, default 100); a
   backlog beyond that drains at `limit`/`interval`.
+- Multi-replica polling amplifies redelivery (~N× re-download for N
+  replicas). Mitigable, opt-in, via `polling.distributed-lock.*` (ShedLock +
+  a `LockProvider` bean) — but best-effort: a `LockProvider` outage falls
+  back to every replica polling, and idempotent listeners are still
+  required. It coordinates whole cycles, not individual submissions.
 - `base-urls`/boolean overrides (`allow-insecure-public-key`, etc.) can only
   force a custom environment's default to `true`, never back to `false`
   (`Environment.merge` treats `null` as "fall through").
+- The callback webhook endpoint is servlet-only by design
+  (`@ConditionalOnWebApplication(type = SERVLET)`, blocking
+  `SubmissionProcessor.process` inline). Sending, polling-based receiving,
+  metrics and health have no web dependency at all and run on WebFlux or no
+  web layer; a reactive callback endpoint is possible but out of scope.
 
 Full list with severities and file:line references: [`code-review.md`](code-review.md)
 (a point-in-time review — check it before re-reporting a finding it already
@@ -131,8 +161,11 @@ covers, then note there if something changed).
 Every bean is `@ConditionalOnMissingBean` — declare your own of the same type
 to replace it: `SenderClient`, `SubmissionSender`, `SubscriberClientFactory`,
 `ReceivingDestinations`, `SubmissionProcessor`, `SubmissionPollingService`,
-`ReceivePipelineMetrics`, `FitConnectReceiverHealthIndicator`,
-`fitConnectCallbackObjectMapper`.
+`ReceivePipelineMetrics`, `RetryCooldownStore`, `PollCycleGate`,
+`FitConnectReceiverHealthIndicator`, `fitConnectCallbackObjectMapper`.
+(A replacement `SubmissionPollingService` bean must accept `RetryCooldownStore`
+and `PollCycleGate` in its constructor the same way the default one does, or
+pass `RetryCooldownStore.NONE` / `PollCycleGate.DIRECT`.)
 
 ## Working on this repo
 

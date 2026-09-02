@@ -272,5 +272,65 @@ public class FitConnectProperties {
          * immediately.
          */
         private Duration retryCooldown;
+
+        /**
+         * Name of the Spring {@link org.springframework.cache.Cache} that
+         * holds {@link #getRetryCooldown()} state - one entry per
+         * currently-failing submission id, value = the ISO-8601 timestamp of
+         * its last failure. Only relevant when {@code retry-cooldown} is set.
+         *
+         * <p>If the application has a {@code CacheManager} (e.g. Redis,
+         * shared across replicas), configure a cache of this name there -
+         * ideally with a TTL at least as long as {@code retry-cooldown} - and
+         * cooldowns are then shared fleet-wide. With no {@code CacheManager}
+         * the starter uses a self-pruning in-process fallback and this name
+         * is cosmetic.
+         */
+        private String retryCooldownCacheName = "fitconnect-retry-cooldown";
+
+        private final DistributedLock distributedLock = new DistributedLock();
+
+        /**
+         * Opt-in mutual exclusion so that, when this application runs as
+         * several replicas all polling the same FIT-Connect destination(s),
+         * only one replica runs any given poll cycle instead of every replica
+         * re-downloading and re-publishing every unresolved submission (~N x
+         * the work for N replicas). Listeners must be idempotent regardless,
+         * so this is a cost/efficiency measure, not a correctness fix.
+         *
+         * <p>Inactive unless ShedLock ({@code
+         * net.javacrumbs.shedlock:shedlock-core}, an optional dependency of
+         * this starter) is on the classpath <em>and</em> the application
+         * declares a {@code net.javacrumbs.shedlock.core.LockProvider} bean
+         * (the consumer picks the backend: JDBC, Redis, Mongo, ...). With
+         * neither, every replica polls independently, exactly as before. The
+         * callback webhook endpoint is never gated by this lock.
+         */
+        @Getter
+        @Setter
+        public static class DistributedLock {
+
+            /** Set to {@code false} to keep ShedLock on the classpath but not gate polling with it. */
+            private boolean enabled = true;
+
+            /**
+             * Safety-net upper bound on how long the fleet-wide poll lock
+             * stays held if the replica holding it dies mid-cycle without
+             * releasing it. Unset derives {@code 10 x} {@link
+             * Polling#getInterval()}. Too low and a legitimately long cycle
+             * lets a second replica start overlapping; too high and a hard
+             * crash stalls polling fleet-wide until it expires.
+             */
+            private Duration lockAtMostFor;
+
+            /**
+             * Lower bound on how long the poll lock stays held even when the
+             * cycle finishes sooner - this is what actually spaces polls out
+             * across the fleet (without it an empty cycle releases
+             * immediately and another replica polls the same queue straight
+             * away). Unset derives {@link Polling#getInterval()}.
+             */
+            private Duration lockAtLeastFor;
+        }
     }
 }
