@@ -8,13 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,10 +47,10 @@ import java.util.concurrent.TimeoutException;
  * endpoint is never gated by that lock.
  *
  * <p>Per-cycle timings and counts are reported to {@link ReceivePipelineMetrics}
- * (a no-op unless Micrometer is on the classpath), and the timestamp of the
- * last successful poll per destination is kept for {@code
- * FitConnectReceiverHealthIndicator} - together these let an operator tell
- * "polling is healthy but idle" from "polling has been failing".
+ * (a no-op unless Micrometer is on the classpath) - that is where "polling is
+ * healthy but idle" vs "polling has been failing" is visible.
+ * {@code FitConnectReceiverHealthIndicator} only reports whether this
+ * instance's poller thread is running, nothing more.
  *
  * <p>Two independent, opt-in safeguards protect the single poller thread from
  * one bad submission: {@code polling.submission-timeout} (default 10s, always
@@ -77,8 +73,6 @@ public class SubmissionPollingService implements SmartLifecycle {
     private final ReceivePipelineMetrics metrics;
     private final ScheduledExecutorService scheduler;
 
-    private final ConcurrentMap<UUID, Instant> lastSuccessfulPollByDestination = new ConcurrentHashMap<>();
-
     // Retry-cooldown bookkeeping for polling.retry-cooldown. RetryCooldownStore.NONE
     // (a no-op) whenever the property is unset, so the feature costs nothing then;
     // otherwise a Spring Cache-backed store that can be shared across replicas.
@@ -96,7 +90,6 @@ public class SubmissionPollingService implements SmartLifecycle {
     private final PollCycleGate pollCycleGate;
 
     private volatile ScheduledFuture<?> scheduledTask;
-    private volatile Instant startedAt;
 
     public SubmissionPollingService(ReceivingDestinations destinations, SubmissionProcessor submissionProcessor,
                                  FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics,
@@ -123,7 +116,6 @@ public class SubmissionPollingService implements SmartLifecycle {
         }
         Duration initialDelay = receiverProperties.getPolling().getInitialDelay();
         Duration interval = receiverProperties.getPolling().getInterval();
-        startedAt = Instant.now();
         scheduledTask = scheduler.scheduleWithFixedDelay(
                 this::pollSafely, initialDelay.toMillis(), interval.toMillis(), TimeUnit.MILLISECONDS);
         log.info("FIT-Connect polling started for destinations {} (every {})", destinationIds(), interval);
@@ -184,7 +176,6 @@ public class SubmissionPollingService implements SmartLifecycle {
             log.debug("Polling destination {} (limit={})", destinationId, limit);
             List<SubmissionForPickup> available = destination.client()
                     .getAvailableSubmissionsForDestination(destinationId, 0, limit);
-            lastSuccessfulPollByDestination.put(destinationId, Instant.now());
             log.debug("Destination {} has {} submission(s) available", destinationId, available.size());
             for (SubmissionForPickup pickup : available) {
                 processWithSafeguards(destinationId, destination.client(), pickup.getSubmissionId());
@@ -245,30 +236,6 @@ public class SubmissionPollingService implements SmartLifecycle {
             log.warn("Interrupted while waiting for submission {} to be processed", submissionId);
             return false;
         }
-    }
-
-    /**
-     * When each destination was last polled successfully (its available-submissions
-     * list retrieved without error), or absent if never. Used by {@code
-     * FitConnectReceiverHealthIndicator}; returns an immutable snapshot.
-     */
-    public Map<UUID, Instant> lastSuccessfulPollByDestination() {
-        return Map.copyOf(lastSuccessfulPollByDestination);
-    }
-
-    /** When {@link #start()} last scheduled the poller, or absent if it never has (e.g. {@code polling.enabled=false}). */
-    public Instant startedAt() {
-        return startedAt;
-    }
-
-    /** Delay between poll cycles, from {@code fitconnect.receiver.polling.interval}. */
-    public Duration pollInterval() {
-        return receiverProperties.getPolling().getInterval();
-    }
-
-    /** Delay before the first poll after {@link #start()}, from {@code fitconnect.receiver.polling.initial-delay}. */
-    public Duration initialDelay() {
-        return receiverProperties.getPolling().getInitialDelay();
     }
 
     /** The configured destination ids, in poll order. */

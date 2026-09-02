@@ -9,6 +9,7 @@ import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.config.ApplicationConfigFactory;
 import com.gfi.ozg.fitko.spring.receive.CacheRetryCooldownStore;
+import com.gfi.ozg.fitko.spring.receive.CompositeReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.PollCycleGate;
 import com.gfi.ozg.fitko.spring.receive.RetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.SubmissionEventListenerFactory;
@@ -155,10 +156,20 @@ public class FitConnectReceiverAutoConfiguration {
                 pollCycleGate.getIfAvailable(() -> PollCycleGate.DIRECT));
     }
 
-    // Micrometer is optional: FitConnectReceiveMetricsAutoConfiguration only
-    // publishes a ReceivePipelineMetrics bean when it's on the classpath.
+    // The pipeline can have more than one ReceivePipelineMetrics: the
+    // per-instance Micrometer meters (FitConnectReceiveMetricsAutoConfiguration)
+    // and, opt-in, the shared Redis fleet counters
+    // (FitConnectReceiveSharedMetricsAutoConfiguration). Fan out to all of
+    // them; NOOP beans (Micrometer absent, or Redis misconfigured) are dropped.
     private static ReceivePipelineMetrics resolveMetrics(ObjectProvider<ReceivePipelineMetrics> metrics) {
-        return metrics.getIfAvailable(() -> ReceivePipelineMetrics.NOOP);
+        List<ReceivePipelineMetrics> active = metrics.orderedStream()
+                .filter(m -> m != ReceivePipelineMetrics.NOOP)
+                .toList();
+        return switch (active.size()) {
+            case 0 -> ReceivePipelineMetrics.NOOP;
+            case 1 -> active.get(0);
+            default -> new CompositeReceivePipelineMetrics(active);
+        };
     }
 
     private static SubscriberClient createClient(SubscriberClientFactory factory, ApplicationConfig config) {

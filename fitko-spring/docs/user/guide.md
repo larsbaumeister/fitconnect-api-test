@@ -141,9 +141,13 @@ class LeistungHandlers {
 
 With Micrometer on the classpath (e.g. via `spring-boot-starter-actuator`):
 `fitconnect.receive.*` meters — poll count/duration, per-destination
-submission counters. With Actuator's health API too: a `fitConnectReceiver`
-health indicator, `DOWN` when a destination hasn't polled successfully for a
-while. Both opt in by classpath only — see
+submission counters (per instance; aggregate across replicas in your
+monitoring, or set `fitconnect.receiver.shared-metrics.enabled=true` for
+Redis-backed `fitconnect.receive.fleet.*` totals). With Actuator's health API
+too: a `fitConnectReceiver` health indicator that reports whether **this
+instance's** poller thread is running (`DOWN` only if it was meant to run and
+isn't) — for "is polling succeeding?", watch the meters. All opt in by
+classpath/property — see
 [`configuration.md`](configuration.md#observability-of-the-receive-pipeline-optional).
 
 ### Receiving via callback (push)

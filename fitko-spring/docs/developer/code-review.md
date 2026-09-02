@@ -157,6 +157,24 @@ successful poll for `initial-delay + 3 x interval`). Wired by
 `spring-boot-health` added as `optional` deps. Documented in
 `docs/configuration.md`. 13 new tests (58 total, all green).
 
+**Update (2026-09-02).** The health indicator was deliberately narrowed to a
+plain per-instance liveness check: `UP` when this JVM's poller thread is
+running (or polling is disabled), `DOWN` only when it was meant to run and
+isn't. The "no successful poll for `initial-delay + 3 x interval` per
+destination" staleness logic (and the `lastSuccessfulPollByDestination` /
+`startedAt` state that backed it) was removed - it inferred more than a
+liveness check should, and under the new multi-replica ShedLock gate a
+replica that keeps losing the poll lock would have gone `DOWN` despite the
+fleet being fine. "Is polling actually succeeding?" now belongs entirely to
+the `fitconnect.receive.*` meters.
+
+Also added: `fitconnect.receiver.shared-metrics.enabled=true` (needs Spring
+Data Redis) makes every replica keep the receive counts in Redis and expose
+them as `fitconnect.receive.fleet.*` gauges, so a single scrape shows
+fleet-wide totals instead of one replica's slice.
+`ReceivePipelineMetrics` is now fanned out via
+`CompositeReceivePipelineMetrics` when more than one impl is wired.
+
 **M2 — ~~A permanently failing submission fails forever, every cycle, with no
 backoff or escape.~~ Addressed (2026-08-31).** `polling.submission-timeout`
 (default 10s, always on) now bounds how long any one submission - including a

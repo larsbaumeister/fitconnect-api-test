@@ -4,6 +4,7 @@ import dev.fitko.fitconnect.client.SenderClient;
 import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.receive.CacheRetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.PollCycleGate;
+import com.gfi.ozg.fitko.spring.receive.RedisReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.RetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.ShedLockPollCycleGate;
 import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
@@ -24,6 +25,9 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import static org.mockito.Mockito.mock;
 
 import java.nio.file.Path;
 
@@ -44,6 +48,7 @@ class FitConnectAutoConfigurationTest {
                     FitConnectAutoConfiguration.class,
                     FitConnectSenderAutoConfiguration.class,
                     FitConnectReceiveMetricsAutoConfiguration.class,
+                    FitConnectReceiveSharedMetricsAutoConfiguration.class,
                     FitConnectPollLockAutoConfiguration.class,
                     FitConnectReceiverAutoConfiguration.class,
                     FitConnectReceiveHealthAutoConfiguration.class));
@@ -213,6 +218,33 @@ class FitConnectAutoConfigurationTest {
         contextRunner.withPropertyValues(receiverOnlyProperties())
                 .withClassLoader(new FilteredClassLoader(LockProvider.class))
                 .run(context -> assertThat(context).doesNotHaveBean(PollCycleGate.class)
+                        .hasSingleBean(SubmissionPollingService.class));
+    }
+
+    @Test
+    void contributesNoSharedFleetMetricsByDefault() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .run(context -> assertThat(context).doesNotHaveBean(RedisReceivePipelineMetrics.class));
+    }
+
+    @Test
+    void wiresTheRedisFleetMetricsWhenEnabledAndAStringRedisTemplateIsPresent() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withPropertyValues("fitconnect.receiver.shared-metrics.enabled=true")
+                .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                .run(context -> assertThat(context).hasSingleBean(RedisReceivePipelineMetrics.class)
+                        .hasSingleBean(SubmissionPollingService.class));
+    }
+
+    @Test
+    void sharedMetricsEnabledButNoRedisFallsBackWithoutFailing() {
+        contextRunner.withPropertyValues(receiverOnlyProperties())
+                .withPropertyValues("fitconnect.receiver.shared-metrics.enabled=true")
+                .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .run(context -> assertThat(context).hasNotFailed()
+                        .doesNotHaveBean(RedisReceivePipelineMetrics.class)
                         .hasSingleBean(SubmissionPollingService.class));
     }
 }

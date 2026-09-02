@@ -181,20 +181,56 @@ are tagged `destination` with the Zustellpunkt id:
 | `fitconnect.receive.submissions.processed` | counter | Submissions downloaded and published without error. |
 | `fitconnect.receive.submissions.failed` | counter | Submissions whose download/publish threw (left on the delivery service). |
 
+These meters are **per instance**. With several replicas, aggregate them in
+your monitoring backend — add an `instance`/`pod` tag and use `sum by
+(destination)` (or `max`, for the timer count). Note that with the default
+`default-outcome: LEAVE` the `submissions.*` counters measure *pipeline work*
+(a submission left unresolved is re-found and re-processed every cycle by
+every replica), not distinct submissions. Enabling
+`polling.distributed-lock.*` removes the per-replica multiplication (only one
+replica polls per cycle); `shared-metrics` below gives a single fleet total.
+
+**Shared fleet metrics** (`fitconnect.receiver.shared-metrics.*`) — opt-in.
+When `enabled=true` and Spring Data Redis is on the classpath (bring
+`spring-boot-starter-data-redis`, configure `spring.data.redis.*`), every
+replica also atomically increments shared Redis counters and re-publishes
+them as `fitconnect.receive.fleet.*` gauges, so a scrape of **any single**
+replica reports the whole fleet's totals:
+
+| Meter | Type | Meaning |
+|---|---|---|
+| `fitconnect.receive.fleet.submissions.found` | gauge | Fleet-wide total, tagged `destination`. |
+| `fitconnect.receive.fleet.submissions.processed` | gauge | Fleet-wide total, tagged `destination`. |
+| `fitconnect.receive.fleet.submissions.failed` | gauge | Fleet-wide total, tagged `destination`. |
+| `fitconnect.receive.fleet.poll.count` | gauge | Fleet-wide poll count, tagged `destination`, `outcome=success\|failure`. |
+
+Every replica reports the **same** value, so aggregate the `fleet.*` gauges
+with `max` (or scrape one instance) — **never `sum`**. A Redis outage is
+logged at debug and never breaks a poll cycle; the gauges report `NaN` until
+Redis is back. The per-instance `fitconnect.receive.*` meters are unchanged.
+
+| Property | Type | Default | Notes |
+|---|---|---|---|
+| `shared-metrics.enabled` | boolean | `false` | Opt in. Needs Spring Data Redis + a `StringRedisTemplate` bean; logs a warning and does nothing if the property is set without them. |
+| `shared-metrics.key-prefix` | string | `fitconnect:receive:` | Redis key namespace; change only if unrelated apps share one Redis. |
+
 **Health indicator** — active when Spring Boot Actuator's health API
 (`spring-boot-health`) is present. Adds a `fitConnectReceiver` entry to
-`/actuator/health`:
+`/actuator/health`. It is a plain liveness signal for **this instance's**
+poller thread — it does not judge FIT-Connect, other replicas, or whether
+submissions are flowing (that is what the meters above are for):
 
-- `UNKNOWN` — `polling.enabled=false` (nothing to assert).
-- `UP` — every destination was polled successfully within
-  `initial-delay + 3 x interval` (or the startup grace period of the same
-  length is still running).
-- `DOWN` — at least one destination has had no successful poll for longer
-  than that window; the `details` name each destination and its last-success
-  timestamp.
+- `UP` — the poller is running, or `polling.enabled=false` (callback-only
+  mode; nothing to run). `details.polling` is `running` or `disabled`.
+- `DOWN` — polling is enabled but the poller is not running: it failed to
+  start, or has stopped. `details.polling` is `stopped`.
 
 Disable it like any indicator with
 `management.health.fit-connect-receiver.enabled=false`.
+
+For "is polling actually succeeding?", alert on the meters instead — e.g.
+`fitconnect.receive.poll` with `outcome=failure` climbing, or no
+`outcome=success` samples for a while.
 
 ## `fitconnect.receiver.callback.*` (optional)
 
