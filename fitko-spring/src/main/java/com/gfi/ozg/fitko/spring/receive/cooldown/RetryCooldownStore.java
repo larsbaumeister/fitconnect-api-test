@@ -1,9 +1,9 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.cooldown;
 
 import java.util.UUID;
 
 /**
- * Records which submissions failed processing recently, so {@link
+ * Records which submissions failed processing recently, so {@code
  * SubmissionPollingService} can honour {@code
  * fitconnect.receiver.polling.retry-cooldown} - not re-fetching a submission
  * that just failed on every single poll cycle.

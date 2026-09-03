@@ -3,6 +3,7 @@ package com.gfi.ozg.fitko.spring.receive;
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import dev.fitko.fitconnect.client.SubscriberClient;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
+import com.gfi.ozg.fitko.spring.receive.metrics.ReceivePipelineMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 

@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.cooldown;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;

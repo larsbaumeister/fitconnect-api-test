@@ -2,8 +2,8 @@ package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import dev.fitko.fitconnect.api.config.ApplicationConfig;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
-import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
-import com.gfi.ozg.fitko.spring.receive.RedisReceivePipelineMetrics;
+import com.gfi.ozg.fitko.spring.receive.metrics.ReceivePipelineMetrics;
+import com.gfi.ozg.fitko.spring.receive.metrics.RedisReceivePipelineMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;

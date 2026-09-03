@@ -5,6 +5,7 @@ import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import dev.fitko.fitconnect.client.SubscriberClient;
 import com.gfi.ozg.fitko.spring.autoconfigure.FitConnectAutoConfiguration;
 import com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiverAutoConfiguration;
+import com.gfi.ozg.fitko.spring.receive.destination.SubscriberClientFactory;
 import com.gfi.ozg.fitko.spring.support.TestJwkKeys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

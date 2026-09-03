@@ -1,11 +1,11 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.metrics;
 
 import java.time.Duration;
 import java.util.UUID;
 
 /**
- * Callback surface the receive pipeline ({@link SubmissionPollingService},
- * {@link SubmissionProcessor}) invokes so operational metrics can be recorded
+ * Callback surface the receive pipeline ({@code SubmissionPollingService},
+ * {@code SubmissionProcessor}) invokes so operational metrics can be recorded
  * without either class depending on Micrometer directly - Micrometer is an
  * optional dependency of this starter, so the always-loaded receive classes
  * must not import it.

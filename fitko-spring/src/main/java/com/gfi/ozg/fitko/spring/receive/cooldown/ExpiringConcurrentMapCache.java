@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.cooldown;
 
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 

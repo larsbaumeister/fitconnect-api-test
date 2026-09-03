@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.metrics;
 
 import lombok.extern.slf4j.Slf4j;
 

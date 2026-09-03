@@ -1,7 +1,7 @@
 package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gfi.ozg.fitko.spring.receive.ReceivingDestinations;
+import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
 import com.gfi.ozg.fitko.spring.receive.callback.FitConnectCallbackController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

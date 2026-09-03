@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.destination;
 
 import java.util.List;
 import java.util.Objects;

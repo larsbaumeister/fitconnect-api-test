@@ -1,5 +1,6 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.health;
 
+import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.Status;

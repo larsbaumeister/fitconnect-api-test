@@ -1,8 +1,8 @@
 package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import dev.fitko.fitconnect.api.config.ApplicationConfig;
-import com.gfi.ozg.fitko.spring.receive.MicrometerReceivePipelineMetrics;
-import com.gfi.ozg.fitko.spring.receive.ReceivePipelineMetrics;
+import com.gfi.ozg.fitko.spring.receive.metrics.MicrometerReceivePipelineMetrics;
+import com.gfi.ozg.fitko.spring.receive.metrics.ReceivePipelineMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

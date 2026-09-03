@@ -1,7 +1,7 @@
 package com.gfi.ozg.fitko.spring.autoconfigure;
 
 import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
-import com.gfi.ozg.fitko.spring.receive.FitConnectReceiverHealthIndicator;
+import com.gfi.ozg.fitko.spring.receive.health.FitConnectReceiverHealthIndicator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;

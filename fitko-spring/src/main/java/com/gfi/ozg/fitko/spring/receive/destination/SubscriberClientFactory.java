@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.destination;
 
 import dev.fitko.fitconnect.api.config.ApplicationConfig;
 import dev.fitko.fitconnect.api.exceptions.client.FitConnectInitialisationException;

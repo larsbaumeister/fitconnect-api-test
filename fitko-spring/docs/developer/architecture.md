@@ -25,11 +25,17 @@ why and where each is handled instead.
 | `spring.autoconfigure` | `@AutoConfiguration` classes. Wiring only, no logic. |
 | `spring.config` | `ApplicationConfigFactory`/`MetadataVersions` — properties → SDK types. |
 | `spring.send` | Public sending API: `SubmissionSender`, `SubmissionToSend`, `AttachmentToSend`, `DataSetToSend`. |
-| `spring.receive` | Event API, poller, processor, metrics, health indicator. |
+| `spring.receive` | Core receive flow: the event API (`SubmissionReceivedEvent`, `@SubmissionEventListener`, `IncomingSubmission`), the poller (`SubmissionPollingService`, `PollCycleGate`, `ShedLockPollCycleGate`), and `SubmissionProcessor`/`DefaultOutcome`. |
+| `spring.receive.destination` | `ReceivingDestination`(`s`) + `SubscriberClientFactory` — which Zustellpunkte this app receives on, and the SDK-client seam. |
+| `spring.receive.metrics` | `ReceivePipelineMetrics` and its impls (Micrometer, Redis fleet, composite). Optional, Micrometer-gated. |
+| `spring.receive.cooldown` | `RetryCooldownStore` + the `Cache`-backed / in-process-fallback impls for `polling.retry-cooldown`. |
+| `spring.receive.health` | `FitConnectReceiverHealthIndicator` — the `fitConnectReceiver` Actuator contributor. |
 | `spring.receive.callback` | The webhook controller. |
 
 No cyclic dependencies; `send` and `receive` don't depend on each other, only
-on `config`/root.
+on `config`/root. Within `receive`, the sub-packages (`destination`, `metrics`,
+`cooldown`, `health`, `callback`) are the pluggable concerns each auto-config
+wires in; the root depends on them, never the reverse.
 
 ## Auto-configuration chain
 

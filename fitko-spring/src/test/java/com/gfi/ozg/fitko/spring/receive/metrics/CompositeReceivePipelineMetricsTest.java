@@ -1,4 +1,4 @@
-package com.gfi.ozg.fitko.spring.receive;
+package com.gfi.ozg.fitko.spring.receive.metrics;
 
 import org.junit.jupiter.api.Test;
 
