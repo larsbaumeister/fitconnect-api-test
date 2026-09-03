@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.fail;
 /**
  * IT-3 - the metadata v2 {@code dataSets} slot: an {@code IdentificationReport}
  * (authentication / trust-level proof, see
- * notes/submission-identity-routing-trust.md) attached with
+ * java-samples/docs/identity-routing-trust.md) attached with
  * {@link DataSetToSend} arrives intact, with its content, schema reference and
  * auto-computed sha512 hash; a requested metadata version is honoured.
  */

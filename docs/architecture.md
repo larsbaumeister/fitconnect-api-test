@@ -1,7 +1,7 @@
 # Architecture
 
 For humans and agents working on `fitko-spring` itself. For usage docs, see
-[../user/guide.md](../user/guide.md).
+[user-guide.md](user-guide.md).
 
 ## Goal
 
@@ -14,7 +14,7 @@ ever touch the SDK's `ClientFactory`/`ApplicationConfig` directly.
 
 Sending replies, the FIT-Connect reply channel, reply pickup via callback,
 large/chunked attachments, destination/routing lookup and provisioning, virus
-scanning. See [user guide § Out of scope](../user/guide.md#out-of-scope) for
+scanning. See [user guide § Out of scope](user-guide.md#out-of-scope) for
 why and where each is handled instead.
 
 ## Package layout
@@ -137,8 +137,8 @@ Auto-reject is on by default (`disable-auto-reject=false`): a
 validation/malware/decryption failure inside `requestSubmission` rejects the
 submission **server-side, inside the SDK call, before it throws**. So
 `SubmissionProcessor`'s catch-block log line ("stays on the delivery service")
-can be wrong — the submission may already be gone. Known gap, not yet fixed;
-see `code-review.md` M4 before changing that code path.
+can be wrong — the submission may already be gone. Known gap, not yet fixed:
+soften or split that message before relying on it when debugging a delivery.
 
 ## Known limitations
 
@@ -150,7 +150,7 @@ see `code-review.md` M4 before changing that code path.
   `polling.retry-cooldown` (unset by default) — when configured — stops a
   submission that fails every cycle from being retried every single cycle.
   See `polling.submission-timeout`/`polling.retry-cooldown` in
-  [../user/configuration.md](../user/configuration.md). There is still no
+  [configuration.md](configuration.md). There is still no
   way to run independent submissions concurrently within a cycle.
 - One page per destination per cycle (`polling.limit`, default 100); a
   backlog beyond that drains at `limit`/`interval`.
@@ -167,10 +167,21 @@ see `code-review.md` M4 before changing that code path.
   `SubmissionProcessor.process` inline). Sending, polling-based receiving,
   metrics and health have no web dependency at all and run on WebFlux or no
   web layer; a reactive callback endpoint is possible but out of scope.
+- `SubmissionProcessor.process` catches every `RuntimeException` and logs
+  *"stays on the delivery service"*, which can be wrong when the SDK
+  auto-rejected server-side first (see "Delivery semantics" above).
+- `ApplicationConfigFactory.withSubscriberConfig` rebuilds the SDK's
+  `ApplicationConfig` through its positional 10-arg constructor — reordering
+  two same-typed fields in the SDK would break it silently (see "Key design
+  decisions"). An upstream `ApplicationConfig.toBuilder()`/`withSubscriberConfig`
+  is the real fix.
 
-Full list with severities and file:line references: [`code-review.md`](code-review.md)
-(a point-in-time review — check it before re-reporting a finding it already
-covers, then note there if something changed).
+## Packaging status
+
+Not yet a fully published library: no CI pipeline, no `-sources`/`-javadoc`
+jars, and the POM has no `<scm>`/`<licenses>`/`<url>`. It builds and installs
+locally (`mvn install`) and is consumed that way by the sample and the
+integration-tests project.
 
 ## Extension points
 
@@ -186,16 +197,17 @@ pass `RetryCooldownStore.NONE` / `PollCycleGate.DIRECT`.)
 ## Working on this repo
 
 - Standalone Maven module, no `<parent>`: `cd fitko-spring && mvn package`
-  builds and runs the full suite on its own. JDK 17+ to build; CI-verified on
-  Temurin 25.
+  builds and runs the full suite on its own. JDK 17+ to build; developed and
+  tested on Temurin 25. No CI pipeline yet.
 - Tests mock the SDK's `SenderClient`/`SubscriberClient` — no network, no
   real key material (`TestJwkKeys` mints throwaway JWKs via the SDK's own
   `TestKeyBuilder`).
-- `SampleApplicationYamlTest` binds [`docs/user/application.yaml`](../user/application.yaml)
-  against the real `FitConnectProperties`, so a renamed/typo'd property in
-  the sample fails the build instead of surfacing as a user's "unknown
-  property" surprise. Run tests from the module root (it reads that path
-  relative to the working directory).
+- `SampleApplicationYamlTest` binds [`../docs/application.yaml`](application.yaml)
+  (i.e. `java-samples/docs/application.yaml`) against the real
+  `FitConnectProperties`, so a renamed/typo'd property in the sample fails
+  the build instead of surfacing as a user's "unknown property" surprise.
+  Run tests from the `fitko-spring` module root — it reads that path
+  (`../docs/application.yaml`) relative to the working directory.
 - Auto-config conditionals: `ApplicationContextRunner`
   (`FitConnectAutoConfigurationTest`). Full wiring: `@SpringBootTest` with
   mocked clients. Callback endpoint: real `MockMvc` HTTP dispatch.
@@ -205,13 +217,11 @@ pass `RetryCooldownStore.NONE` / `PollCycleGate.DIRECT`.)
 - `FitConnectProperties`' field javadoc is the single source of truth for
   config docs (`spring-boot-configuration-processor` turns it into IDE
   metadata). Change it first, then mirror into
-  [`../user/configuration.md`](../user/configuration.md) and, if the sample
-  is affected, [`../user/application.yaml`](../user/application.yaml).
+  [`configuration.md`](configuration.md) and, if the sample
+  is affected, [`application.yaml`](application.yaml).
 - Respect the package boundaries above — `receive` and `send` don't import
   each other.
 - Before touching `ApplicationConfigFactory`, read its class javadoc: it
   documents two SDK-source-verified assumptions (`Environment.merge`'s
   null-means-fall-through semantics; one key set per `SubscriberClient`) the
   rest of the receive side relies on.
-- `code-review.md` in this directory lists known gaps with severities — skim
-  it before filing a new finding that might already be tracked there.

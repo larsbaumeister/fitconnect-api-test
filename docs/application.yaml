@@ -7,7 +7,7 @@
 # or any other Spring property source; YAML is just the easiest to read.
 #
 # Nothing below is required as shown - trim this down to whichever of
-# sending/receiving your application actually does. See docs/configuration.md
+# sending/receiving your application actually does. See configuration.md
 # in this same directory for the full property reference, defaults, and
 # which combinations are required.
 

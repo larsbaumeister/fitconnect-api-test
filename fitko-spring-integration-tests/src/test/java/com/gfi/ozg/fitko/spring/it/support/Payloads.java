@@ -67,7 +67,7 @@ public final class Payloads {
     /**
      * A minimal Governikus-style {@code IdentificationReport} dataSet payload,
      * enough to assert the {@code levelOfAssurance} and {@code subjectRef}
-     * survive the round trip (see notes/submission-identity-routing-trust.md).
+     * survive the round trip (see java-samples/docs/identity-routing-trust.md).
      */
     public static String identificationReport(String subjectRef, String levelOfAssurance) {
         return """

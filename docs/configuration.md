@@ -1,7 +1,7 @@
 # Configuration reference
 
 Every property lives under the `fitconnect` prefix and binds to
-[`FitConnectProperties`](../../src/main/java/com/gfi/ozg/fitko/spring/FitConnectProperties.java)
+[`FitConnectProperties`](../fitko-spring/src/main/java/com/gfi/ozg/fitko/spring/FitConnectProperties.java)
 via Spring Boot's regular relaxed binding: `application.yml`,
 `application.properties`, environment variables
 (`FITCONNECT_SENDER_CLIENT_ID`, ...), a config server, whatever you already use.
@@ -122,7 +122,7 @@ that's merely slow but eventually succeeds only ever interacts with the
 timeout; a submission that's genuinely broken (corrupt payload, a listener
 bug) hits the timeout or fails fast, then `retry-cooldown` (if configured)
 stops it from re-consuming part of every subsequent cycle. See "Known
-limitations" in `docs/developer/architecture.md` for the underlying
+limitations" in [`architecture.md`](architecture.md) for the underlying
 single-threaded-poller trade-off these mitigate.
 
 The cooldown state lives in a Spring `Cache` (see
@@ -260,7 +260,7 @@ sends with every request. Registering the endpoint's URL as the destination's
 `Callback` with FIT-Connect (via `DestinationClient`, using the same secret
 configured here) is a separate, one-time provisioning step outside this
 starter's scope - same as `RouterClient`/`DestinationClient` generally, see
-["Out of scope"](guide.md#out-of-scope) in the user guide.
+["Out of scope"](user-guide.md#out-of-scope) in the user guide.
 
 ## `fitconnect.http.*` (optional)
 

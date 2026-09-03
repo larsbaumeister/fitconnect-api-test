@@ -14,8 +14,8 @@
   <name>fitko-spring</name>
   <description>
     Spring Boot auto-configuration for the FIT-Connect Java SDK: sending
-    Anträge via an injectable AntragSender bean, and receiving them as Spring
-    application events, all configured through regular
+    submissions via an injectable SubmissionSender bean, and receiving them as
+    Spring application events, all configured through regular
     application.properties/application.yml.
   </description>
 

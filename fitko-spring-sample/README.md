@@ -232,5 +232,5 @@ cycle against a mocked SDK `SubscriberClient`.
 Sending replies, the FIT-Connect reply channel, large/chunked attachments,
 destination/routing lookup (`RouterClient` / `DestinationClient`), virus
 scanning, registering a callback URL. See the starter's
-[user guide § Out of scope](../fitko-spring/docs/user/guide.md#out-of-scope)
-and [configuration reference](../fitko-spring/docs/user/configuration.md).
+[user guide § Out of scope](../docs/user-guide.md#out-of-scope)
+and [configuration reference](../docs/configuration.md).

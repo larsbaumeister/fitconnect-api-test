@@ -221,4 +221,4 @@ network or key material).
   [SDK overview](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/overview#virenscanner)
   to wire up ClamAV or ICAP.
 
-For how this starter is built, see [../developer/architecture.md](../developer/architecture.md).
+For how this starter is built, see [architecture.md](architecture.md).

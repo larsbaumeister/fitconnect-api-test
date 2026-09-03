@@ -8,9 +8,9 @@
 # metadata generated at build time.
 #
 # Full reference (defaults, which combination is required when):
-#   ../fitko-spring/docs/user/configuration.md
+#   ../docs/configuration.md
 # Annotated superset of this file:
-#   ../fitko-spring/docs/user/application.yaml
+#   ../docs/application.yaml
 #
 # This sample turns BOTH sides on. A real app usually sets
 # `sender.enabled: false` or `receiver.enabled: false`.

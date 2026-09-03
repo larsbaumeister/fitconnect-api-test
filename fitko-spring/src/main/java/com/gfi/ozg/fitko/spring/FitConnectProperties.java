@@ -278,7 +278,7 @@ public class FitConnectProperties {
          * counted as a failure (see {@link #getRetryCooldown()}). Guards
          * against a hung network call or a blocking bug in a listener
          * stalling the single-threaded poller indefinitely - see "Known
-         * limitations" in {@code docs/developer/architecture.md}.
+         * limitations" in {@code java-samples/docs/architecture.md}.
          *
          * <p>Enforced via {@link Thread#interrupt()} on a best-effort basis:
          * the poller thread moves on to the next submission promptly, but

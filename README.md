@@ -13,12 +13,23 @@ A single standalone Maven project under [`fitko-spring/`](fitko-spring)
 
 ## Docs
 
-- **[User guide](fitko-spring/docs/user/guide.md)** — install, configure,
-  send, receive. Start here to use the library.
-- **[Configuration reference](fitko-spring/docs/user/configuration.md)** —
-  every `fitconnect.*` property, defaults, when it's required.
-- **[Architecture](fitko-spring/docs/developer/architecture.md)** — goal,
-  design decisions, known limitations. Start here to work on the library.
+All project documentation lives in **[`docs/`](docs)**:
+
+- **[User guide](docs/user-guide.md)** — install, configure, send, receive.
+  Start here to use the library.
+- **[Configuration reference](docs/configuration.md)** — every
+  `fitconnect.*` property, defaults, when it's required.
+- **[`application.yaml`](docs/application.yaml)** — a full, annotated example
+  config.
+- **[Architecture](docs/architecture.md)** — goal, design decisions, known
+  limitations. Start here to work on the library.
+- **[Identity, Kammer-routing & trust level](docs/identity-routing-trust.md)**
+  — what a FIT-Connect submission does and doesn't tell you about the
+  applicant, and what you have to build yourself.
+
+The two example projects keep their own `README.md` as their entry point
+([`fitko-spring-sample/`](fitko-spring-sample),
+[`fitko-spring-integration-tests/`](fitko-spring-integration-tests)).
 
 ## Example application
 
