@@ -140,9 +140,10 @@
           </includes>
           <skipITs>${skipITs}</skipITs>
           <!-- One external FIT-Connect destination is shared by the whole
-               suite; never run two round trips against it at once. -->
+               suite; never run two round trips against it at once. One reused
+               JVM so a one-time destination cleanup stays one-time. -->
           <forkCount>1</forkCount>
-          <reuseForks>false</reuseForks>
+          <reuseForks>true</reuseForks>
           <trimStackTrace>false</trimStackTrace>
           <properties>
             <configurationParameters>

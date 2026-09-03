@@ -128,17 +128,59 @@ public final class ITCredentials {
     }
 
     /**
-     * LeiKa key sent as the submission's service id. For the transport tests
-     * it is an opaque label that just travels in the metadata, so it has a
-     * sensible default; {@code SchemaValidationRoundTripIT} requires the real
-     * one to be set.
+     * LeiKa key sent as the submission's service id. The SDK checks this
+     * against the destination's registered services on send, so it must be
+     * one the fixture destination actually accepts. Defaults to the
+     * Gewerbeanmeldung key, which pairs with {@link #dataSchema()} below.
      */
     public static String serviceId() {
         return env("FITCONNECT_IT_SERVICE_ID", "urn:de:fim:leika:leistung:99050035001000");
     }
 
+    /**
+     * XML data schema URI sent with the submission. The SDK checks this
+     * (mime + uri) against the destination's registered submission schemas on
+     * send, so it is NOT an opaque label - it must match one the fixture
+     * destination allows. Default: the XZuFi schema for the Gewerbeanmeldung
+     * service. Override together with {@link #serviceId()} for another
+     * destination.
+     */
     public static String dataSchema() {
-        return env("FITCONNECT_IT_DATA_SCHEMA", "https://schema.fitko.de/fim/it/roundtrip/v1.xsd");
+        return env("FITCONNECT_IT_DATA_SCHEMA",
+                "https://fimportal.de/api/v0/leistung-steckbriefe/99050035001000/xzufi");
+    }
+
+    /**
+     * A region code (e.g. {@code DE11}, {@code DE110000000000}) the fixture
+     * destination's service is registered for, or {@code null} - the
+     * destination rejects a region it does not serve, so the region round-trip
+     * test only runs when this is set.
+     */
+    public static String serviceRegion() {
+        return env("FITCONNECT_IT_SERVICE_REGION", null);
+    }
+
+    /**
+     * {@code true} if the fixture destination accepts an e-mail reply channel.
+     * Many TEST destinations accept none (or only the FIT-Connect reply
+     * channel, which is out of scope for the starter), and reject a submission
+     * that requests one with {@code unsupported-reply-channel}.
+     */
+    public static boolean emailReplyChannelSupported() {
+        return Boolean.parseBoolean(env("FITCONNECT_IT_EMAIL_REPLY_CHANNEL", "false"));
+    }
+
+    /** {@code true} if a JSON service + schema the fixture destination accepts is configured. */
+    public static boolean hasJsonService() {
+        return allSet(List.of("FITCONNECT_IT_JSON_SERVICE_ID", "FITCONNECT_IT_JSON_DATA_SCHEMA"));
+    }
+
+    public static String jsonServiceId() {
+        return env("FITCONNECT_IT_JSON_SERVICE_ID", serviceId());
+    }
+
+    public static String jsonDataSchema() {
+        return require("FITCONNECT_IT_JSON_DATA_SCHEMA");
     }
 
     // --- helpers ----------------------------------------------------------------

@@ -69,7 +69,7 @@ class SchemaValidationOptOutRoundTripIT extends AbstractRoundTripIT {
                 .build());
 
         // it IS delivered (transport works), unlike the auto-reject case
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
         assertThat(received.data()).contains(marker);
 
         // the listener's own reject then removes it, with the reason visible to the sender

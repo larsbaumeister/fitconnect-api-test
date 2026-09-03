@@ -70,7 +70,7 @@ class ObservabilityRoundTripIT extends AbstractRoundTripIT {
                         Payloads.xml(marker), URI.create(ITCredentials.dataSchema()))
                 .destinationId(ITCredentials.destinationId())
                 .build());
-        awaitReceived(listener, sent.getSubmissionId());
+        awaitReceived(listener, sent);
 
         assertThat(meterRegistry.get("fitconnect.receive.poll")
                 .tag("destination", destination).tag("outcome", "success").timer().count())

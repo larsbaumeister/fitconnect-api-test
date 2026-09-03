@@ -47,7 +47,7 @@ class AttachmentRoundTripIT extends AbstractRoundTripIT {
         SentSubmission sent = send(submission(marker)
                 .attachment(AttachmentToSend.ofBytes(content, "text/plain", "ausweis.txt"))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.attachments()).hasSize(1);
         Attachment attachment = received.attachments().get(0);
@@ -70,7 +70,7 @@ class AttachmentRoundTripIT extends AbstractRoundTripIT {
                 .attachment(AttachmentToSend.ofBytes(json, "application/json", "extra.json"))
                 .attachment(AttachmentToSend.ofBytes(bin, "application/octet-stream", "payload.bin"))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.attachments()).hasSize(3);
         assertThat(byName(received.attachments(), "notes.txt").getDataAsBytes()).isEqualTo(txt);
@@ -90,7 +90,7 @@ class AttachmentRoundTripIT extends AbstractRoundTripIT {
         SentSubmission sent = send(submission(marker)
                 .attachment(AttachmentToSend.ofBytes(big, "application/octet-stream", "big.bin"))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.attachments()).hasSize(1);
         assertThat(received.attachments().get(0).getDataAsBytes()).isEqualTo(big);

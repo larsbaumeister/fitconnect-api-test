@@ -20,14 +20,17 @@ fitconnect:
     default-outcome: LEAVE
 
     # The round-trip suite tests TRANSPORT: bytes in == bytes out, metadata
-    # preserved, accept/reject honoured. It does not assume a real LeiKa
-    # service + dataSchema is registered on the fixture destination, so local
-    # schema validation and server-side auto-reject are off by default.
-    # `SchemaValidationRoundTripIT` is the ONE class that flips these back and
-    # drives real schema behaviour (it needs FITCONNECT_IT_SERVICE_ID /
-    # FITCONNECT_IT_DATA_SCHEMA).
+    # preserved, accept/reject honoured. The payloads are toy documents sent
+    # with the destination's real schema URI, so local schema validation is
+    # off (it would reject them). Auto-reject is left ON (the starter default)
+    # so that pre-existing junk submissions on a shared TEST destination -
+    # e.g. ones encrypted with a key we no longer hold - get cleared instead
+    # of being re-tried every poll cycle. Our own submissions decrypt fine and
+    # skip validation, so auto-reject never touches them.
+    # `SchemaValidationRoundTripIT` / `...OptOutRoundTripIT` set these
+    # per-context to drive real schema behaviour.
     skip-submission-data-validation: true
-    disable-auto-reject: true
+    disable-auto-reject: false
 
     polling:
       # Tests drive the real background poller (this project cannot call the

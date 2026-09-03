@@ -1,6 +1,32 @@
+# build output
 target/
+
+# --- local, private, never commit ---------------------------------------
+# credentials + key material for a real FIT-Connect environment
+run.sh
+run.local.sh
+*.jwk
+*.jwk.json
+*.pem
+*.p12
+privateKey*
+publicKey*
 it-keys/
-*.log
+keys/
+secrets/
+.env
+*.env
+
+# key/cert bundles downloaded from the Self-Service-Portal
+fitko.zip
+fitko.b64
+*.zip
+
+# WSL / Windows metadata
+*:Zone.Identifier
+
+# IDE
 .idea/
 *.iml
 .vscode/
+*.log

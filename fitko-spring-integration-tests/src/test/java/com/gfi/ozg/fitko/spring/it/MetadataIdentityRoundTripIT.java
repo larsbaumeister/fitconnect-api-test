@@ -58,7 +58,7 @@ class MetadataIdentityRoundTripIT extends AbstractRoundTripIT {
         SentSubmission sent = send(submission(marker)
                 .dataSet(DataSetToSend.of(Payloads.identificationReportSchemaUri(), "application/json", report))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         DataSet dataSet = onlyDataSet(received.metadata());
         assertThat(dataSet.getSchema().getSchemaUri()).isEqualTo(Payloads.identificationReportSchemaUri());
@@ -82,7 +82,7 @@ class MetadataIdentityRoundTripIT extends AbstractRoundTripIT {
                 .dataSet(DataSetToSend.of(Payloads.identificationReportSchemaUri(), "application/json",
                         Payloads.identificationReport("subj-" + marker.hashCode(), "http://eidas.europa.eu/LoA/low")))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.metadata()).isInstanceOf(MetadataV2.class);
         assertThat(received.metadata().getSchema()).contains("2.");
@@ -100,7 +100,7 @@ class MetadataIdentityRoundTripIT extends AbstractRoundTripIT {
                 .dataSet(DataSetToSend.of(Payloads.identificationReportSchemaUri(), "application/json", reportA))
                 .dataSet(DataSetToSend.of(Payloads.identificationReportSchemaUri(), "application/json", reportB))
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         List<DataSet> dataSets = dataSets(received.metadata());
         assertThat(dataSets).hasSize(2);

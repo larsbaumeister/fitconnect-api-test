@@ -37,8 +37,6 @@ invocation, so they never run these tests either.
 cd ../fitko-spring && mvn install
 ```
 
-CI rebuilds it first; do this once locally.
-
 ---
 
 ## Credentials
@@ -63,18 +61,30 @@ class as skipped / `Tests run: 0`) and `mvn verify` stays green.
 | Variable | Default | Used by |
 |---|---|---|
 | `FITCONNECT_ENVIRONMENT` | `TEST` | all - `STAGE` / a custom name also work |
-| `FITCONNECT_IT_STRICT` | `false` | CI - `true` makes a missing required variable a **failure** instead of a skip |
-| `FITCONNECT_IT_SERVICE_ID` + `FITCONNECT_IT_DATA_SCHEMA` | placeholder | `SchemaValidationRoundTripIT` / `SchemaValidationOptOutRoundTripIT` - the real LeiKa service + `dataSchema` registered on the destination |
+| `FITCONNECT_IT_STRICT` | `false` | `true` makes a missing required variable a **failure** instead of a skip (for an unattended run that must not silently do nothing) |
+| `FITCONNECT_IT_SERVICE_ID` + `FITCONNECT_IT_DATA_SCHEMA` | Gewerbeanmeldung + its XZuFi schema | The service id + XML schema URI to send with. The SDK checks both against the destination on send, so override them together for a destination that isn't registered for the default service. |
+| `FITCONNECT_IT_SERVICE_REGION` | – | `PlainRoundTripIT.serviceRegionRoundTripsWhenSet` - a region code (`DE…`) the destination's service is registered for. The destination rejects a region it doesn't serve, so this test only runs when set. |
+| `FITCONNECT_IT_EMAIL_REPLY_CHANNEL` | `false` | `PlainRoundTripIT.anEmailReplyChannelSurvives` - set `true` only if the destination accepts an e-mail reply channel (many reject one with `unsupported-reply-channel`). |
+| `FITCONNECT_IT_JSON_SERVICE_ID` + `FITCONNECT_IT_JSON_DATA_SCHEMA` | – | `PlainRoundTripIT.jsonPayloadRoundTrips` - a JSON service + schema the destination accepts. |
 | `FITCONNECT_IT_VALID_PAYLOAD` | – | `SchemaValidationRoundTripIT` - a resource holding a schema-valid instance document |
 | `FITCONNECT_IT_DESTINATION2_ID` + `FITCONNECT_IT_DESTINATION2_SIGNING_KEY` + `FITCONNECT_IT_DESTINATION2_DECRYPTION_KEY` | – | `MultiDestinationRoundTripIT` - a second Zustellpunkt with its own key pair |
+
+Setting `FITCONNECT_IT_SERVICE_ID` **and** `FITCONNECT_IT_DATA_SCHEMA` also turns
+on `SchemaValidationRoundTripIT` / `...OptOutRoundTripIT` (which additionally
+want `FITCONNECT_IT_VALID_PAYLOAD`).
 
 ### Getting the fixtures
 
 - A TEST account: <https://docs.fitko.de/fit-connect/docs/getting-started/account>
 - Register a destination and generate its key pair:
   <https://docs.fitko.de/fit-connect/docs/receiving/certificate>
-- The fixture destination should accept arbitrary service types (the default
-  on TEST) - `RoutingFilteringRoundTripIT` sends two different LeiKa keys to it.
+- The default service/schema is the Gewerbeanmeldung LeiKa key
+  (`urn:de:fim:leika:leistung:99050035001000`) + its XZuFi schema. The
+  destination must be registered for whatever `FITCONNECT_IT_SERVICE_ID` /
+  `FITCONNECT_IT_DATA_SCHEMA` resolve to - the SDK enforces this on send.
+- On first run the suite rejects any pre-existing submissions on the
+  destination it cannot decrypt (old key material) so they stop clogging the
+  poll cycle.
 
 Example local run:
 
@@ -131,5 +141,6 @@ mvn verify
   test only ever resolves its own submission; foreign submissions on the
   shared destination are never touched. No JUnit parallelism; one context per
   class, torn down after the class (`@DirtiesContext`).
-- **CI.** Run nightly / on demand, not per-PR: `mvn -DFITCONNECT_IT_STRICT=true verify`
-  with the secrets injected. See `.github/workflows/integration-tests.yml`.
+- **Not wired into any CI.** These run only when someone runs them, with
+  credentials in the environment. `run.sh` (git-ignored) is a convenience
+  wrapper that exports them and calls `mvn verify`.

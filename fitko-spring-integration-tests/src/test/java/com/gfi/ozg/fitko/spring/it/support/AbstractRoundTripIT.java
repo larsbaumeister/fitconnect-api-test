@@ -4,9 +4,12 @@ import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.send.SubmissionSender;
 import com.gfi.ozg.fitko.spring.send.SubmissionToSend;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
+import dev.fitko.fitconnect.client.SenderClient;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +65,12 @@ public abstract class AbstractRoundTripIT {
     @Autowired
     protected ObjectProvider<ReceivingDestinations> receivingDestinations;
 
+    @Autowired
+    protected ObjectProvider<SenderClient> senderClientProvider;
+
+    /** Undecryptable junk on the shared destination is cleared once for the whole JVM run. */
+    private static volatile boolean undecryptableCleared = false;
+
     @BeforeAll
     static void requireCredentials() {
         ITCredentials.requireBaseCredentials();
@@ -70,6 +79,24 @@ public abstract class AbstractRoundTripIT {
     @DynamicPropertySource
     static void baseFitConnectProperties(DynamicPropertyRegistry registry) {
         ITProperties.registerBase(registry);
+    }
+
+    @BeforeEach
+    void clearUndecryptableJunkOnce() {
+        if (undecryptableCleared) {
+            return;
+        }
+        synchronized (AbstractRoundTripIT.class) {
+            if (undecryptableCleared) {
+                return;
+            }
+            try {
+                OrphanSweep.clearUndecryptable(receivingDestinations.getIfAvailable());
+            } catch (RuntimeException e) {
+                log.warn("Undecryptable-junk cleanup failed (ignored)", e);
+            }
+            undecryptableCleared = true;
+        }
     }
 
     @AfterEach
@@ -90,7 +117,22 @@ public abstract class AbstractRoundTripIT {
         return sent;
     }
 
-    /** Blocks until the poller has delivered {@code submissionId} to {@code listener}, then returns the snapshot. */
+    /** Blocks until the poller has delivered {@code sent} to {@code listener}, then returns the snapshot. */
+    protected RecordingListener.Received awaitReceived(RecordingListener listener, SentSubmission sent) {
+        try {
+            Awaitility.await("round trip of submission " + sent.getSubmissionId())
+                    .atMost(RECEIVE_TIMEOUT)
+                    .pollDelay(Duration.ZERO)
+                    .pollInterval(RECEIVE_POLL)
+                    .until(() -> listener.sawId(sent.getSubmissionId()));
+        } catch (ConditionTimeoutException e) {
+            throw new AssertionError("Submission " + sent.getSubmissionId() + " was sent but never delivered to a "
+                    + "listener within " + RECEIVE_TIMEOUT + ". Server-side status: " + describeStatus(sent), e);
+        }
+        return listener.require(sent.getSubmissionId());
+    }
+
+    /** As above, when only the id is known. */
     protected RecordingListener.Received awaitReceived(RecordingListener listener, UUID submissionId) {
         Awaitility.await("round trip of submission " + submissionId)
                 .atMost(RECEIVE_TIMEOUT)
@@ -98,6 +140,21 @@ public abstract class AbstractRoundTripIT {
                 .pollInterval(RECEIVE_POLL)
                 .until(() -> listener.sawId(submissionId));
         return listener.require(submissionId);
+    }
+
+    /** Best-effort server-side status of a sent submission, for failure messages. */
+    protected String describeStatus(SentSubmission sent) {
+        SenderClient client = senderClientProvider.getIfAvailable();
+        if (client == null) {
+            return "<no SenderClient>";
+        }
+        try {
+            var status = client.getSubmissionStatus(sent);
+            return status.getState() + (status.getProblems() == null || status.getProblems().isEmpty()
+                    ? "" : " " + status.getProblems().stream().map(p -> p.getType()).toList());
+        } catch (Exception e) {
+            return "<status unavailable: " + e.getMessage() + ">";
+        }
     }
 
     /**

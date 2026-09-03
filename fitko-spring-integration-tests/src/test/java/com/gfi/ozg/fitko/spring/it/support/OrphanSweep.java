@@ -2,21 +2,34 @@ package com.gfi.ozg.fitko.spring.it.support;
 
 import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestinations;
+import dev.fitko.fitconnect.api.domain.model.event.problems.Problem;
 import dev.fitko.fitconnect.api.domain.model.submission.SubmissionForPickup;
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+import java.util.UUID;
+
 /**
- * Accepts every submission still sitting on a configured destination whose
- * data carries a {@link Payloads#MARKER_PREFIX} marker - i.e. one this suite
- * produced but a failure left behind before it could be resolved. Run from
- * {@code @AfterEach}/{@code @AfterAll} so a shared TEST destination does not
- * slowly fill up with test submissions.
+ * Keeps a configured destination clean enough for the round-trip tests to run
+ * against:
  *
- * <p>It only ever touches submissions with a suite marker; anything else on
- * the destination is left untouched. Every error is swallowed - a sweep
- * failure must never fail or mask a test.
+ * <ul>
+ *   <li>{@link #acceptSuiteLeftovers} - accepts every still-available
+ *       submission whose data carries a {@link Payloads#MARKER_PREFIX} marker,
+ *       i.e. one this suite produced but a failure left behind. Run from
+ *       {@code @AfterEach}.</li>
+ *   <li>{@link #clearUndecryptable} - rejects every still-available submission
+ *       that cannot be downloaded/decrypted (e.g. encrypted with a key that no
+ *       longer matches the destination). These are never one of ours - our
+ *       submissions always decrypt - and, unlike a schema failure, a key
+ *       mismatch is <em>not</em> auto-rejected by the SDK, so they otherwise
+ *       clog the destination forever and starve a poll cycle that uses a
+ *       small {@code polling.limit}. Run from {@code @BeforeEach}.</li>
+ * </ul>
+ *
+ * Every error is swallowed - a sweep must never fail or mask a test.
  */
 public final class OrphanSweep {
 
@@ -40,23 +53,77 @@ public final class OrphanSweep {
         return accepted;
     }
 
+    /** Rejects every available submission that cannot be downloaded/decrypted. Returns how many. */
+    public static int clearUndecryptable(ReceivingDestinations destinations) {
+        if (destinations == null) {
+            return 0;
+        }
+        int rejected = 0;
+        for (ReceivingDestination destination : destinations.all()) {
+            rejected += clearUndecryptableOne(destination);
+        }
+        if (rejected > 0) {
+            log.info("Cleared {} undecryptable submission(s) off the destination(s)", rejected);
+        }
+        return rejected;
+    }
+
     private static int sweepOne(ReceivingDestination destination) {
         int accepted = 0;
         try {
-            for (SubmissionForPickup pickup : destination.client()
-                    .getAvailableSubmissionsForDestination(destination.destinationId(), 0, PAGE)) {
+            for (SubmissionForPickup pickup : list(destination)) {
                 if (acceptIfSuiteSubmission(destination, pickup.getSubmissionId())) {
                     accepted++;
                 }
             }
         } catch (RuntimeException e) {
-            log.warn("Orphan sweep could not list destination {}: {}",
-                    destination.destinationId(), e.toString());
+            log.warn("Orphan sweep could not list destination {}: {}", destination.destinationId(), e.toString());
         }
         return accepted;
     }
 
-    private static boolean acceptIfSuiteSubmission(ReceivingDestination destination, java.util.UUID submissionId) {
+    private static int clearUndecryptableOne(ReceivingDestination destination) {
+        int rejected = 0;
+        try {
+            for (SubmissionForPickup pickup : list(destination)) {
+                try {
+                    destination.client().requestSubmission(pickup.getSubmissionId());
+                    // downloaded fine - leave it (it is either ours or a real submission)
+                } catch (RuntimeException downloadFailure) {
+                    if (tryReject(destination, pickup)) {
+                        rejected++;
+                        log.info("Rejected undecryptable submission {} on destination {} ({})",
+                                pickup.getSubmissionId(), destination.destinationId(), downloadFailure.getMessage());
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Undecryptable-cleanup could not list destination {}: {}",
+                    destination.destinationId(), e.toString());
+        }
+        return rejected;
+    }
+
+    private static boolean tryReject(ReceivingDestination destination, SubmissionForPickup pickup) {
+        try {
+            Problem problem = new Problem(
+                    Problem.SCHEMA_URL + "technical-error",
+                    "Undecryptable",
+                    "fitko-spring-it: submission could not be decrypted with the configured keys; cleared by test setup",
+                    "other");
+            destination.client().rejectSubmission(pickup, List.of(problem));
+            return true;
+        } catch (RuntimeException e) {
+            log.debug("Could not reject undecryptable submission {}: {}", pickup.getSubmissionId(), e.toString());
+            return false;
+        }
+    }
+
+    private static List<SubmissionForPickup> list(ReceivingDestination destination) {
+        return destination.client().getAvailableSubmissionsForDestination(destination.destinationId(), 0, PAGE);
+    }
+
+    private static boolean acceptIfSuiteSubmission(ReceivingDestination destination, UUID submissionId) {
         try {
             ReceivedSubmission submission = destination.client().requestSubmission(submissionId);
             if (!Payloads.containsAnySuiteMarker(safeData(submission))) {
@@ -67,7 +134,7 @@ public final class OrphanSweep {
                     submissionId, destination.destinationId());
             return true;
         } catch (RuntimeException e) {
-            log.warn("Orphan sweep could not process submission {}: {}", submissionId, e.toString());
+            log.debug("Orphan sweep skipped submission {}: {}", submissionId, e.toString());
             return false;
         }
     }

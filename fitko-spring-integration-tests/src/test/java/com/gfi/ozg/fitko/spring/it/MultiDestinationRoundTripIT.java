@@ -73,8 +73,8 @@ class MultiDestinationRoundTripIT extends AbstractRoundTripIT {
         SentSubmission sent1 = send(submissionTo(ITCredentials.destinationId(), marker1));
         SentSubmission sent2 = send(submissionTo(ITCredentials.secondDestinationId(), marker2));
 
-        RecordingListener.Received received1 = awaitReceived(listener, sent1.getSubmissionId());
-        RecordingListener.Received received2 = awaitReceived(listener, sent2.getSubmissionId());
+        RecordingListener.Received received1 = awaitReceived(listener, sent1);
+        RecordingListener.Received received2 = awaitReceived(listener, sent2);
 
         assertThat(received1.destinationId()).isEqualTo(ITCredentials.destinationId());
         assertThat(received1.data()).contains(marker1);
@@ -94,7 +94,7 @@ class MultiDestinationRoundTripIT extends AbstractRoundTripIT {
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(submissionTo(ITCredentials.destinationId(), marker));
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.data()).contains(marker);
         assertNotRedelivered(listener, sent.getSubmissionId());

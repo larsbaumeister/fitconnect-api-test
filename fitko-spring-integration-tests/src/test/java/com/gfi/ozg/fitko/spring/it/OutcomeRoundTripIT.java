@@ -54,7 +54,7 @@ class OutcomeRoundTripIT extends AbstractRoundTripIT {
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(submission(marker).build());
-        awaitReceived(listener, sent.getSubmissionId());
+        awaitReceived(listener, sent);
 
         awaitState(sent, EventState.ACCEPTED);
         assertNotRedelivered(listener, sent.getSubmissionId());
@@ -66,7 +66,7 @@ class OutcomeRoundTripIT extends AbstractRoundTripIT {
         listener.rejectMarked(marker, new DataSchemaViolation());
 
         SentSubmission sent = send(submission(marker).build());
-        awaitReceived(listener, sent.getSubmissionId());
+        awaitReceived(listener, sent);
 
         Status status = awaitState(sent, EventState.REJECTED);
         assertThat(status.getProblems())
@@ -81,7 +81,7 @@ class OutcomeRoundTripIT extends AbstractRoundTripIT {
         listener.resolution(RecordingListener.Resolution.LEAVE); // the default, made explicit
 
         SentSubmission sent = send(submission(marker).build());
-        awaitReceived(listener, sent.getSubmissionId());
+        awaitReceived(listener, sent);
 
         // still on the delivery service -> re-downloaded and re-published on subsequent cycles
         Awaitility.await("redelivery of " + sent.getSubmissionId())

@@ -54,7 +54,7 @@ class DefaultOutcomeRoundTripIT extends AbstractRoundTripIT {
                         Payloads.xml(marker), URI.create(ITCredentials.dataSchema()))
                 .destinationId(ITCredentials.destinationId())
                 .build());
-        awaitReceived(listener, sent.getSubmissionId());
+        awaitReceived(listener, sent);
 
         Awaitility.await("submission " + sent.getSubmissionId() + " auto-accepted")
                 .atMost(Duration.ofMinutes(2))

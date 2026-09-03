@@ -36,13 +36,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * across cycles instead of dropping it.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
-        "fitconnect.receiver.polling.submission-timeout=4s",
-        "fitconnect.receiver.polling.retry-cooldown=8s",
+        // generous enough that a normal download/decrypt never trips it, tight
+        // enough that the deliberately-slow listener does
+        "fitconnect.receiver.polling.submission-timeout=8s",
+        "fitconnect.receiver.polling.retry-cooldown=15s",
         "fitconnect.receiver.polling.limit=2"
 })
 class PollingSafeguardsRoundTripIT extends AbstractRoundTripIT {
 
-    private static final Duration RESOLVE_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration RESOLVE_TIMEOUT = Duration.ofMinutes(3);
 
     @Autowired
     SafeguardListener listener;
@@ -56,7 +58,7 @@ class PollingSafeguardsRoundTripIT extends AbstractRoundTripIT {
     void aSubmissionThatOverrunsTheTimeoutIsAbandonedForTheCyclebutNotLost() {
         String marker = Payloads.newMarker(getClass());
         listener.slowMarker = marker;
-        listener.slowSleepMillis = 12_000; // well past the 4s submission-timeout; only the first sighting sleeps
+        listener.slowSleepMillis = 25_000; // well past the 8s submission-timeout; only the first sighting sleeps
 
         SentSubmission sent = send(submission(marker));
 
@@ -78,18 +80,18 @@ class PollingSafeguardsRoundTripIT extends AbstractRoundTripIT {
 
         SentSubmission sent = send(submission(marker));
 
-        // wait for the first failure, then measure the retry rate over the next ~24s
+        // wait for the first failure, then measure the retry rate over the next ~45s
         Awaitility.await("first processing attempt for " + sent.getSubmissionId())
                 .atMost(RECEIVE_TIMEOUT).pollInterval(Duration.ofSeconds(2))
                 .until(() -> listener.attempts(marker) >= 1);
         int attemptsAtStart = listener.attempts(marker);
-        sleep(Duration.ofSeconds(24));
+        sleep(Duration.ofSeconds(45));
         int retries = listener.attempts(marker) - attemptsAtStart;
 
-        // interval is 3s, cooldown is 8s: ~3 retries in 24s, definitely not ~8
+        // poll interval is 3s, cooldown is 15s: ~3 retries in 45s, nowhere near ~15
         assertThat(retries)
                 .as("retry-cooldown throttles retries to roughly one per cooldown, not one per poll interval")
-                .isBetween(1, 5);
+                .isBetween(1, 6);
 
         // stop failing -> it is picked up promptly and accepted
         listener.throwMarker = null;

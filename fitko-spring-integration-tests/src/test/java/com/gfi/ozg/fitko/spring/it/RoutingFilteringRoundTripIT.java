@@ -10,6 +10,8 @@ import com.gfi.ozg.fitko.spring.send.DataFormat;
 import com.gfi.ozg.fitko.spring.send.SubmissionToSend;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +22,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 
 import java.net.URI;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,24 +32,34 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * IT-5 - {@code @SubmissionEventListener} routing against a live round trip:
- * a listener filtered to one LeiKa service only fires for that service, an
- * unfiltered {@code @EventListener} fires for everything, several listeners
- * coexist, and {@code @Order} is respected (an audit listener observes before
- * the resolving one).
+ * a listener filtered to the submitted service fires, a listener filtered to
+ * a <em>different</em> service does not, an unfiltered {@code @EventListener}
+ * fires for everything, and {@code @Order} is respected (an audit listener
+ * observes before the resolving one).
  *
- * <p>This class hardcodes its two service ids (they must be compile-time
- * constants for the annotation) and ignores {@code FITCONNECT_IT_SERVICE_ID}.
- * The fixture destination must accept arbitrary service types - the default
- * on TEST.
+ * <p>Only one service id is ever sent (a TEST Zustellpunkt is registered for
+ * a fixed set of services). {@link #SERVICE_A} is hardcoded because the
+ * annotation needs a constant; the class skips if
+ * {@code FITCONNECT_IT_SERVICE_ID} points somewhere else.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class RoutingFilteringRoundTripIT extends AbstractRoundTripIT {
 
-    static final String SERVICE_A = "urn:de:fim:leika:leistung:99050035001000"; // "Gewerbeanmeldung"
-    static final String SERVICE_B = "urn:de:fim:leika:leistung:99050035002000"; // "Bauantrag"
+    /** The service actually sent - must match FITCONNECT_IT_SERVICE_ID (its default). */
+    static final String SERVICE_A = "urn:de:fim:leika:leistung:99050035001000";
+
+    /** A different LeiKa key, never sent - the negative-filter case. */
+    static final String SERVICE_OTHER = "urn:de:fim:leika:leistung:99000000000000";
 
     @Autowired
     FilteringListeners listeners;
+
+    @BeforeAll
+    static void requireDefaultService() {
+        Assumptions.assumeTrue(SERVICE_A.equals(ITCredentials.serviceId()),
+                "RoutingFilteringRoundTripIT sends " + SERVICE_A + " but FITCONNECT_IT_SERVICE_ID is "
+                        + ITCredentials.serviceId());
+    }
 
     @BeforeEach
     void resetListeners() {
@@ -57,23 +68,21 @@ class RoutingFilteringRoundTripIT extends AbstractRoundTripIT {
 
     @Test
     void aSubmissionOnlyReachesTheListenerFilteredToItsService() {
-        String markerA = Payloads.newMarker(getClass());
-        listeners.acceptMarker(markerA);
-        SentSubmission sentA = send(submission(SERVICE_A, markerA));
-        awaitHit(markerA, "resolve");
+        String marker = Payloads.newMarker(getClass());
+        listeners.acceptMarker(marker);
 
-        assertThat(listeners.hits(markerA)).contains("serviceA", "audit").doesNotContain("serviceB");
+        SentSubmission sent = send(submission(marker));
+        awaitHit(marker, "resolve");
 
-        String markerB = Payloads.newMarker(getClass());
-        listeners.acceptMarker(markerB);
-        SentSubmission sentB = send(submission(SERVICE_B, markerB));
-        awaitHit(markerB, "resolve");
+        assertThat(listeners.hits(marker))
+                .as("the filtered listener for the sent service, and the unfiltered one, fire")
+                .contains("serviceA", "audit");
+        assertThat(listeners.hits(marker))
+                .as("a listener filtered to a different service does not fire")
+                .doesNotContain("serviceOther");
 
-        assertThat(listeners.hits(markerB)).contains("serviceB", "audit").doesNotContain("serviceA");
-
-        assertNoRedelivery(markerA);
-        assertNoRedelivery(markerB);
-        log.info("routed submissions {} / {}", sentA.getSubmissionId(), sentB.getSubmissionId());
+        assertNoRedelivery(marker);
+        log.info("routed submission {}", sent.getSubmissionId());
     }
 
     @Test
@@ -81,7 +90,7 @@ class RoutingFilteringRoundTripIT extends AbstractRoundTripIT {
         String marker = Payloads.newMarker(getClass());
         listeners.acceptMarker(marker);
 
-        send(submission(SERVICE_A, marker));
+        send(submission(marker));
         awaitHit(marker, "resolve");
 
         List<String> hits = listeners.hits(marker);
@@ -106,8 +115,8 @@ class RoutingFilteringRoundTripIT extends AbstractRoundTripIT {
                 .isEqualTo(seen);
     }
 
-    private static SubmissionToSend submission(String serviceId, String marker) {
-        return SubmissionToSend.builder(serviceId, "fitko-spring IT (routing)", DataFormat.XML,
+    private static SubmissionToSend submission(String marker) {
+        return SubmissionToSend.builder(SERVICE_A, "fitko-spring IT (routing)", DataFormat.XML,
                         Payloads.xml(marker), URI.create(ITCredentials.dataSchema()))
                 .destinationId(ITCredentials.destinationId())
                 .build();
@@ -132,9 +141,9 @@ class RoutingFilteringRoundTripIT extends AbstractRoundTripIT {
             record(event, "serviceA");
         }
 
-        @SubmissionEventListener(serviceIds = SERVICE_B)
-        void onServiceB(SubmissionReceivedEvent event) {
-            record(event, "serviceB");
+        @SubmissionEventListener(serviceIds = SERVICE_OTHER)
+        void onServiceOther(SubmissionReceivedEvent event) {
+            record(event, "serviceOther");
         }
 
         @EventListener

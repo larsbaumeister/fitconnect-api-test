@@ -8,6 +8,7 @@ import com.gfi.ozg.fitko.spring.it.support.RecordingListenerConfig;
 import com.gfi.ozg.fitko.spring.send.DataFormat;
 import com.gfi.ozg.fitko.spring.send.SubmissionToSend;
 import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +42,7 @@ class PlainRoundTripIT extends AbstractRoundTripIT {
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(xmlSubmission(payload).build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.data()).isEqualTo(payload);
         assertThat(received.dataMimeType()).containsIgnoringCase("xml");
@@ -52,16 +53,19 @@ class PlainRoundTripIT extends AbstractRoundTripIT {
 
     @Test
     void jsonPayloadRoundTrips() {
+        Assumptions.assumeTrue(ITCredentials.hasJsonService(),
+                "set FITCONNECT_IT_JSON_SERVICE_ID + FITCONNECT_IT_JSON_DATA_SCHEMA to a JSON service "
+                        + "the fixture destination accepts");
         String marker = Payloads.newMarker(getClass());
         String payload = Payloads.json(marker);
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(SubmissionToSend.builder(
-                        ITCredentials.serviceId(), "fitko-spring IT (json)", DataFormat.JSON,
-                        payload, URI.create(ITCredentials.dataSchema()))
+                        ITCredentials.jsonServiceId(), "fitko-spring IT (json)", DataFormat.JSON,
+                        payload, URI.create(ITCredentials.jsonDataSchema()))
                 .destinationId(ITCredentials.destinationId())
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.data()).isEqualTo(payload);
         assertThat(received.dataMimeType()).containsIgnoringCase("json");
@@ -69,18 +73,30 @@ class PlainRoundTripIT extends AbstractRoundTripIT {
     }
 
     @Test
-    void caseIdIsStableAndReplyChannelSurvives() {
+    void theCaseIdReportedBySendIsTheOneTheReceiverSees() {
+        String marker = Payloads.newMarker(getClass());
+        listener.acceptMarked(marker);
+
+        SentSubmission sent = send(xmlSubmission(Payloads.xml(marker)).build());
+        RecordingListener.Received received = awaitReceived(listener, sent);
+
+        assertThat(received.caseId()).isEqualTo(sent.getCaseId());
+        assertThat(received.submissionId()).isEqualTo(sent.getSubmissionId());
+        assertNotRedelivered(listener, sent.getSubmissionId());
+    }
+
+    @Test
+    void anEmailReplyChannelSurvives() {
+        Assumptions.assumeTrue(ITCredentials.emailReplyChannelSupported(),
+                "set FITCONNECT_IT_EMAIL_REPLY_CHANNEL=true if the fixture destination accepts an e-mail reply channel");
         String marker = Payloads.newMarker(getClass());
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(xmlSubmission(Payloads.xml(marker))
-                .replyChannelEmail("applicant+" + marker.hashCode() + "@example.org")
+                .replyChannelEmail("applicant@example.org")
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
-        // the case id the send call reported is the one the receiver sees
-        assertThat(received.caseId()).isEqualTo(sent.getCaseId());
-        // an e-mail reply channel was requested, so it must be present in the received metadata
         assertThat(received.metadata()).isNotNull();
         assertThat(received.metadata().getReplyChannel()).isNotNull();
         assertNotRedelivered(listener, sent.getSubmissionId());
@@ -88,15 +104,18 @@ class PlainRoundTripIT extends AbstractRoundTripIT {
 
     @Test
     void serviceRegionRoundTripsWhenSet() {
+        String region = ITCredentials.serviceRegion();
+        Assumptions.assumeTrue(region != null,
+                "set FITCONNECT_IT_SERVICE_REGION to a region code the fixture destination's service is registered for");
         String marker = Payloads.newMarker(getClass());
         listener.acceptMarked(marker);
 
         SentSubmission sent = send(xmlSubmission(Payloads.xml(marker))
-                .serviceRegion("11") // Berlin, AGS prefix - opaque to FIT-Connect, just travels along
+                .serviceRegion(region)
                 .build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
-        assertThat(received.region()).isEqualTo("11");
+        assertThat(received.region()).isEqualTo(region);
         assertNotRedelivered(listener, sent.getSubmissionId());
     }
 

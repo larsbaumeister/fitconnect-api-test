@@ -87,7 +87,7 @@ class SchemaValidationRoundTripIT extends AbstractRoundTripIT {
         listener.resolution(RecordingListener.Resolution.ACCEPT).resolveWhen(r -> r.submissionId() != null);
 
         SentSubmission sent = send(realServiceSubmission(payload).build());
-        RecordingListener.Received received = awaitReceived(listener, sent.getSubmissionId());
+        RecordingListener.Received received = awaitReceived(listener, sent);
 
         assertThat(received.data()).isEqualTo(payload);
         assertNotRedelivered(listener, sent.getSubmissionId());
