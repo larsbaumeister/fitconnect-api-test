@@ -1,0 +1,58 @@
+# fitko-spring-integration-tests
+#
+# Credentials, destination ids and key locations are NOT here on purpose:
+# they are injected per test class from environment variables via
+# `ITProperties` / `@DynamicPropertySource`, so a checkout with no
+# environment set never tries (and fails) to bind a half-configured
+# `fitconnect.*` tree. See README.md for the variables, and
+# `com.gfi.ozg.fitko.spring.it.support.ITProperties` for what each maps to.
+#
+# What lives here is only settings common to (nearly) every round-trip test.
+
+spring:
+  main:
+    banner-mode: off
+
+fitconnect:
+  receiver:
+    # Foreign submissions sitting on the shared TEST destination must never
+    # be touched - only a test's own submission, matched by id, is resolved.
+    default-outcome: LEAVE
+
+    # The round-trip suite tests TRANSPORT: bytes in == bytes out, metadata
+    # preserved, accept/reject honoured. It does not assume a real LeiKa
+    # service + dataSchema is registered on the fixture destination, so local
+    # schema validation and server-side auto-reject are off by default.
+    # `SchemaValidationRoundTripIT` is the ONE class that flips these back and
+    # drives real schema behaviour (it needs FITCONNECT_IT_SERVICE_ID /
+    # FITCONNECT_IT_DATA_SCHEMA).
+    skip-submission-data-validation: true
+    disable-auto-reject: true
+
+    polling:
+      # Tests drive the real background poller (this project cannot call the
+      # package-private poll() the way fitko-spring's own tests do), so poll
+      # early and often and let Awaitility handle the timing.
+      initial-delay: 0s
+      interval: 3s
+
+# fitko-spring publishes fitconnect.receive.* meters and the
+# `fitConnectReceiver` health contributor because spring-boot-starter-actuator
+# is on the (test) classpath. ObservabilityRoundTripIT reads them straight off
+# the MeterRegistry / the health indicator bean; exposing the endpoints too
+# just helps when poking at a stuck run.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: WARN
+    com.gfi.ozg.fitko.spring: DEBUG
+    com.gfi.ozg.fitko.spring.it: DEBUG
+    dev.fitko: INFO

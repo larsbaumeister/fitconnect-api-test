@@ -29,6 +29,16 @@ A single standalone Maven project under [`fitko-spring/`](fitko-spring)
   integration-test patterns. Copy from here to bootstrap your own service.
   `cd fitko-spring && mvn install` first, then `cd fitko-spring-sample && mvn test`.
 
+## End-to-end tests
+
+- **[`fitko-spring-integration-tests/`](fitko-spring-integration-tests)** — a
+  separate project that runs `fitko-spring` against a **live FIT-Connect
+  environment**: sends submissions and asserts they round-trip back through the
+  poller. Kept out of the library build on purpose — it needs credentials and
+  a destination not everyone has. `cd fitko-spring && mvn install` first, then
+  `cd fitko-spring-integration-tests && mvn verify` (see its README for the
+  environment variables; runs green and self-skips without them).
+
 ## Prerequisites
 
 - JDK 17 or newer (Spring Boot 4's baseline)

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Standalone on purpose, like fitko-spring and fitko-spring-sample: no
+       <parent>, no shared code. This project exists only to run end-to-end
+       integration tests of the published `fitko-spring` jar against a live
+       FIT-Connect environment. It is never a dependency of anything and is
+       never installed/deployed.
+
+       Prerequisite: `fitko-spring` must be in your local repo first -
+           cd ../fitko-spring && mvn install
+
+       Run the integration tests (needs credentials, see README.md):
+           mvn verify
+
+       `mvn test` does nothing here (there are no *Test.java); the whole
+       suite is *IT.java, driven by failsafe in the `verify` phase. Without
+       credentials the credentialed tests self-skip; StarterConsumabilityIT
+       still runs. -->
+  <groupId>com.gfi.ozg.fitko</groupId>
+  <artifactId>fitko-spring-integration-tests</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>fitko-spring-integration-tests</name>
+  <description>
+    End-to-end round-trip integration tests for the fitko-spring starter:
+    a real Spring Boot context with real FIT-Connect SDK clients that sends
+    submissions to a live FIT-Connect environment and asserts they come back
+    through the background poller. Isolated in its own project so the
+    fitko-spring build stays credential-free and offline.
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Match fitko-spring: Spring Boot 4 baseline. -->
+    <maven.compiler.release>17</maven.compiler.release>
+
+    <fitko-spring.version>1.0.0</fitko-spring.version>
+    <!-- Keep in sync with fitko-spring/pom.xml's spring-boot.version. -->
+    <spring-boot.version>4.1.1</spring-boot.version>
+
+    <maven-failsafe-plugin.version>3.5.2</maven-failsafe-plugin.version>
+    <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+
+    <!-- `-DskipITs=true` skips the failsafe run without touching the profile. -->
+    <skipITs>false</skipITs>
+
+    <!-- This project is a test harness; nothing consumes it. -->
+    <maven.install.skip>true</maven.install.skip>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- ===================================================================
+         The artifact under test - consumed exactly as a downstream service
+         would consume it, through its published jar and its
+         META-INF/spring/...AutoConfiguration.imports. Pulls in the
+         FIT-Connect Java SDK (dev.fitko.fitconnect.sdk:client) transitively.
+         =================================================================== -->
+    <dependency>
+      <groupId>com.gfi.ozg.fitko</groupId>
+      <artifactId>fitko-spring</artifactId>
+      <version>${fitko-spring.version}</version>
+    </dependency>
+
+    <!-- For the @SpringBootApplication test harness class in src/main. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+
+    <!-- Micrometer + the Actuator health API. `micrometer-core` and
+         `spring-boot-health` are OPTIONAL dependencies of fitko-spring, so
+         they are not transitive - ObservabilityRoundTripIT needs them
+         declared here to exercise fitconnect.receive.* meters and the
+         `fitConnectReceiver` health indicator. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Round-trip waiting: send now, assert the poller delivers it within
+         a few minutes. Version managed by spring-boot-dependencies. -->
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Surefire runs in `mvn test`. There are no *Test.java in this
+           project, and *IT.java is excluded from surefire by its default
+           naming convention anyway; the excludedGroups line is a second
+           guard so a mis-named integration test can never leak into a plain
+           unit-test run. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-surefire-plugin.version}</version>
+        <configuration>
+          <excludedGroups>integration</excludedGroups>
+        </configuration>
+      </plugin>
+
+      <!-- Failsafe runs in `mvn verify` / `mvn integration-test`. This is
+           the only way to run the suite - `mvn test`, `mvn package` and
+           `mvn install` never reach these phases with a bare invocation. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
+        <configuration>
+          <includes>
+            <include>**/*IT.java</include>
+          </includes>
+          <skipITs>${skipITs}</skipITs>
+          <!-- One external FIT-Connect destination is shared by the whole
+               suite; never run two round trips against it at once. -->
+          <forkCount>1</forkCount>
+          <reuseForks>false</reuseForks>
+          <trimStackTrace>false</trimStackTrace>
+          <properties>
+            <configurationParameters>
+              junit.jupiter.execution.parallel.enabled = false
+            </configurationParameters>
+          </properties>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
