@@ -6,9 +6,14 @@ import com.gfi.ozg.fitko.spring.receive.cooldown.RetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.destination.SubscriberClientPool;
 import com.gfi.ozg.fitko.spring.receive.metrics.ReceivePipelineMetrics;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import dev.fitko.fitconnect.client.SubscriberClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -162,6 +167,40 @@ class SafeguardedSubmissionRunnerTest {
         assertThat(handled).containsExactlyInAnyOrderElementsOf(fast);
         assertThat(handled).doesNotContain(slow);
         verify(metrics).submissionFailed(destinationId);
+    }
+
+    @Test
+    void logsTheHungWorkerStackTraceWhenASubmissionTimesOut() {
+        UUID destinationId = UUID.randomUUID();
+        ReceivingDestination destination = destinationWithClientPool(destinationId, 1);
+
+        CountDownLatch release = new CountDownLatch(1);
+        when(processor.process(eq(destinationId), any(), any())).thenAnswer(invocation -> {
+            release.await(5, TimeUnit.SECONDS); // still blocked here when the 100ms timeout fires
+            return true;
+        });
+
+        Logger logger = (Logger) LoggerFactory.getLogger(SafeguardedSubmissionRunner.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            runnerWith(1, Duration.ofMillis(100), RetryCooldownStore.NONE)
+                    .processPage(destinationId, destination, List.of(UUID.randomUUID()));
+
+            ILoggingEvent timeoutLog = appender.list.stream()
+                    .filter(e -> e.getLevel() == Level.ERROR)
+                    .filter(e -> e.getFormattedMessage().contains("exceeded the"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("no submission-timeout log was emitted"));
+            assertThat(timeoutLog.getFormattedMessage())
+                    .contains("stuck at:")
+                    .contains("fitconnect-submission-worker")
+                    .contains("java.util.concurrent.CountDownLatch.await");
+        } finally {
+            release.countDown();
+            logger.detachAppender(appender);
+        }
     }
 
     @Test

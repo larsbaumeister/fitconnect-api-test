@@ -21,6 +21,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Runs the per-submission receive work for one destination's poll page, up to
@@ -39,8 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li><b>submission-timeout</b> - each submission still runs on its own
  *       dedicated worker thread with its own full {@code
  *       polling.submission-timeout} budget and a best-effort {@code
- *       cancel(true)} interrupt if it overruns; one stuck submission never
- *       holds up the others.</li>
+ *       cancel(true)} interrupt if it overruns; the hung worker's stack trace
+ *       is logged first so the hang point is visible, and one stuck submission
+ *       never holds up the others.</li>
  *   <li><b>metrics</b> - {@code submissionProcessed} / {@code
  *       submissionFailed} exactly as before.</li>
  * </ul>
@@ -146,22 +148,32 @@ public class SafeguardedSubmissionRunner implements AutoCloseable {
     /**
      * Runs {@code submissionProcessor.process} (against a client borrowed from
      * this destination's pool) on {@link #timeoutExecutor} and waits at most
-     * {@code polling.submission-timeout} for it. On timeout the worker is
-     * interrupted (best-effort - see {@code
+     * {@code polling.submission-timeout} for it. On timeout the hung worker's
+     * current stack trace is logged (so it is visible <em>where</em> the
+     * submission - typically a listener/event handler or a blocking SDK call -
+     * is stuck), the worker is interrupted (best-effort - see {@code
      * FitConnectProperties.Polling#getSubmissionTimeout()}) and this returns
      * {@code false} without waiting for it any longer, so one stuck submission
      * never stalls the rest of the page.
      */
     private boolean processWithTimeout(UUID destinationId, ReceivingDestination destination, UUID submissionId) {
-        Future<Boolean> future = timeoutExecutor.submit(() -> destination.withClient(
-                client -> submissionProcessor.process(destinationId, client, submissionId)));
+        AtomicReference<Thread> worker = new AtomicReference<>();
+        Future<Boolean> future = timeoutExecutor.submit(() -> {
+            worker.set(Thread.currentThread());
+            try {
+                return destination.withClient(
+                        client -> submissionProcessor.process(destinationId, client, submissionId));
+            } finally {
+                worker.set(null);
+            }
+        });
         try {
             return future.get(submissionTimeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            future.cancel(true);
             metrics.submissionFailed(destinationId);
-            log.error("Processing submission {} exceeded the {} submission-timeout, abandoning it for this cycle",
-                    submissionId, submissionTimeout);
+            log.error("Processing submission {} exceeded the {} submission-timeout, abandoning it for this cycle.{}",
+                    submissionId, submissionTimeout, hungWorkerStackTrace(worker.get()));
+            future.cancel(true);
             return false;
         } catch (ExecutionException e) {
             // submissionProcessor.process() is documented to never throw, so
@@ -181,6 +193,29 @@ public class SafeguardedSubmissionRunner implements AutoCloseable {
     public void close() {
         dispatchExecutor.shutdownNow();
         timeoutExecutor.shutdownNow();
+    }
+
+    /**
+     * Best-effort snapshot of where a timed-out submission worker is currently
+     * blocked, captured before {@code cancel(true)} interrupts it so the frames
+     * show the real hang point rather than interrupt handling. Returns an empty
+     * string if the worker already finished in the race with the timeout firing
+     * (its stack is then meaningless).
+     */
+    private static String hungWorkerStackTrace(Thread worker) {
+        if (worker == null) {
+            return "";
+        }
+        StackTraceElement[] frames = worker.getStackTrace();
+        if (frames.length == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(" Worker \"").append(worker.getName())
+                .append("\" is ").append(worker.getState()).append(", stuck at:");
+        for (StackTraceElement frame : frames) {
+            sb.append("\n\tat ").append(frame);
+        }
+        return sb.toString();
     }
 
     private static java.util.concurrent.ThreadFactory namedDaemonFactory(String namePrefix) {
