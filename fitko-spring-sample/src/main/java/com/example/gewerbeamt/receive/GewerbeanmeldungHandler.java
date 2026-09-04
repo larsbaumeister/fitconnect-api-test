@@ -30,10 +30,13 @@ import java.time.Instant;
  * {@code accept()} a crash before the server-side delete can replay it.
  * {@link ReceivedSubmissionStore#save} dedupes on submission id for that reason.
  *
- * <p>Listener methods run on the single poller thread, one submission at a
- * time. Keep them quick, or annotate with {@code @Async} / do the heavy work
- * elsewhere. {@code fitconnect.receiver.polling.submission-timeout} (default
- * 10s) abandons a submission whose listeners run too long.
+ * <p>Listener methods run <b>in parallel</b> across submissions - up to
+ * {@code fitconnect.receiver.polling.concurrency} (default 8) at a time, each
+ * on its own worker thread - so this method must be thread-safe as well as
+ * idempotent. Keep it quick, or do the heavy work elsewhere.
+ * {@code fitconnect.receiver.polling.submission-timeout} (default 10s)
+ * abandons a submission whose listeners run too long; set
+ * {@code polling.concurrency: 1} for strictly-sequential processing.
  */
 @Component
 public class GewerbeanmeldungHandler {

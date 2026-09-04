@@ -9,6 +9,7 @@ import com.gfi.ozg.fitko.spring.FitConnectConfigurationException;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.config.ApplicationConfigFactory;
 import com.gfi.ozg.fitko.spring.receive.PollCycleGate;
+import com.gfi.ozg.fitko.spring.receive.SafeguardedSubmissionRunner;
 import com.gfi.ozg.fitko.spring.receive.SubmissionEventListenerFactory;
 import com.gfi.ozg.fitko.spring.receive.SubmissionPollingService;
 import com.gfi.ozg.fitko.spring.receive.SubmissionProcessor;
@@ -17,6 +18,7 @@ import com.gfi.ozg.fitko.spring.receive.cooldown.RetryCooldownStore;
 import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestination;
 import com.gfi.ozg.fitko.spring.receive.destination.ReceivingDestinations;
 import com.gfi.ozg.fitko.spring.receive.destination.SubscriberClientFactory;
+import com.gfi.ozg.fitko.spring.receive.destination.SubscriberClientPool;
 import com.gfi.ozg.fitko.spring.receive.metrics.CompositeReceivePipelineMetrics;
 import com.gfi.ozg.fitko.spring.receive.metrics.ReceivePipelineMetrics;
 import lombok.extern.slf4j.Slf4j;
@@ -35,14 +37,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Receiving ("Verwaltungssystem") side: one {@link SubscriberClient} per
+ * Receiving ("Verwaltungssystem") side: one {@link SubscriberClientPool} per
  * configured destination (see {@link ApplicationConfigFactory}'s javadoc for
- * why one isn't shared) wrapped as a {@link ReceivingDestination}, a {@link
+ * why clients aren't shared between destinations, and {@link
+ * SubscriberClientPool}'s for why each destination gets a pool rather than a
+ * single client) wrapped as a {@link ReceivingDestination}, a {@link
  * SubmissionProcessor} that turns a submission id into an {@code
- * SubmissionReceivedEvent}, and the {@link SubmissionPollingService} that drives it
- * by polling. {@link FitConnectCallbackAutoConfiguration} reuses the same
- * {@link ReceivingDestination} list and {@link SubmissionProcessor} for the
- * optional callback webhook endpoint.
+ * SubmissionReceivedEvent}, a {@link SafeguardedSubmissionRunner} that
+ * processes each poll page {@code fitconnect.receiver.polling.concurrency}
+ * submissions at a time (carrying the submission-timeout and retry-cooldown
+ * safeguards), and the {@link SubmissionPollingService} that drives it by
+ * polling. {@link FitConnectCallbackAutoConfiguration} reuses the same {@link
+ * ReceivingDestination} list and {@link SubmissionProcessor} for the optional
+ * callback webhook endpoint.
  *
  * <p>Conditional on an {@link ApplicationConfig} bean existing (not directly
  * on {@code fitconnect.enabled}) so this backs off automatically whenever
@@ -85,21 +92,25 @@ public class FitConnectReceiverAutoConfiguration {
                     "fitconnect.receiver.destinations must be set when fitconnect.receiver.enabled=true");
         }
 
-        log.debug("Configuring {} receiving destination(s)", configuredDestinations.size());
+        int concurrency = resolvePollingConcurrency(properties);
+        log.debug("Configuring {} receiving destination(s), up to {} submission(s) in parallel per destination",
+                configuredDestinations.size(), concurrency);
         List<ReceivingDestination> destinations = new ArrayList<>(configuredDestinations.size());
         for (FitConnectProperties.Receiver.Destination destination : configuredDestinations) {
             if (destination.getId() == null) {
                 throw new FitConnectConfigurationException(
                         "Every fitconnect.receiver.destinations entry needs an id");
             }
-            log.debug("Building SubscriberClient for destination {} (callback {})",
+            log.debug("Building SubscriberClient pool for destination {} (callback {})",
                     destination.getId(), destination.getCallbackSecret() != null ? "enabled" : "disabled");
             SubscriberConfig subscriberConfig =
                     ApplicationConfigFactory.createSubscriberConfig(properties.getReceiver(), destination);
             ApplicationConfig destinationConfig =
                     ApplicationConfigFactory.withSubscriberConfig(applicationConfig, subscriberConfig);
-            SubscriberClient client = createClient(subscriberClientFactory, destinationConfig);
-            destinations.add(new ReceivingDestination(destination.getId(), client, destination.getCallbackSecret()));
+            SubscriberClientPool clientPool = new SubscriberClientPool(
+                    () -> createClient(subscriberClientFactory, destinationConfig), concurrency);
+            destinations.add(new ReceivingDestination(
+                    destination.getId(), clientPool, destination.getCallbackSecret()));
         }
         return new ReceivingDestinations(destinations);
     }
@@ -138,6 +149,22 @@ public class FitConnectReceiverAutoConfiguration {
         return CacheRetryCooldownStore.withInProcessFallback(cacheName, cooldown);
     }
 
+    // Owns all of the receive-side concurrency: processes each destination's
+    // poll page up to fitconnect.receiver.polling.concurrency submissions at a
+    // time, while keeping every per-submission safeguard (submission-timeout,
+    // retry-cooldown, metrics). AutoCloseable, so the container shuts its two
+    // executors down on context close.
+    @Bean
+    @ConditionalOnMissingBean
+    public SafeguardedSubmissionRunner fitConnectSafeguardedSubmissionRunner(SubmissionProcessor submissionProcessor,
+                                                       ObjectProvider<ReceivePipelineMetrics> metrics,
+                                                       ObjectProvider<RetryCooldownStore> retryCooldownStore,
+                                                       FitConnectProperties properties) {
+        return new SafeguardedSubmissionRunner(submissionProcessor, resolveMetrics(metrics),
+                retryCooldownStore.getIfAvailable(() -> RetryCooldownStore.NONE),
+                properties.getReceiver().getPolling());
+    }
+
     // No initMethod/destroyMethod here: SubmissionPollingService implements
     // SmartLifecycle itself, so the container already calls start()/stop()
     // at the right point (start() honours isAutoStartup(), i.e.
@@ -145,14 +172,12 @@ public class FitConnectReceiverAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SubmissionPollingService submissionPollingService(ReceivingDestinations fitConnectReceivingDestinations,
-                                                       SubmissionProcessor submissionProcessor,
+                                                       SafeguardedSubmissionRunner fitConnectSafeguardedSubmissionRunner,
                                                        FitConnectProperties properties,
                                                        ObjectProvider<ReceivePipelineMetrics> metrics,
-                                                       ObjectProvider<RetryCooldownStore> retryCooldownStore,
                                                        ObjectProvider<PollCycleGate> pollCycleGate) {
-        return new SubmissionPollingService(fitConnectReceivingDestinations, submissionProcessor, properties.getReceiver(),
-                resolveMetrics(metrics),
-                retryCooldownStore.getIfAvailable(() -> RetryCooldownStore.NONE),
+        return new SubmissionPollingService(fitConnectReceivingDestinations, fitConnectSafeguardedSubmissionRunner,
+                properties.getReceiver(), resolveMetrics(metrics),
                 pollCycleGate.getIfAvailable(() -> PollCycleGate.DIRECT));
     }
 
@@ -178,5 +203,14 @@ public class FitConnectReceiverAutoConfiguration {
         } catch (FitConnectInitialisationException e) {
             throw new FitConnectConfigurationException("Could not initialise the FIT-Connect SubscriberClient", e);
         }
+    }
+
+    private static int resolvePollingConcurrency(FitConnectProperties properties) {
+        int concurrency = properties.getReceiver().getPolling().getConcurrency();
+        if (concurrency < 1) {
+            throw new FitConnectConfigurationException(
+                    "fitconnect.receiver.polling.concurrency must be >= 1, was " + concurrency);
+        }
+        return concurrency;
     }
 }

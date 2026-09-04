@@ -290,6 +290,28 @@ public class FitConnectProperties {
         private Duration submissionTimeout = Duration.ofSeconds(10);
 
         /**
+         * How many of one destination's available submissions are downloaded,
+         * decrypted, published and resolved <em>in parallel</em> within a
+         * single poll cycle. Destinations are still polled one after another;
+         * this parallelises the submissions <em>within</em> each destination's
+         * page.
+         *
+         * <p>Every safeguard still applies per submission: each gets its own
+         * full {@link #getSubmissionTimeout()} budget and its own {@link
+         * #getRetryCooldown()} bookkeeping, and the poll cycle still blocks
+         * until the whole page is done (so cycles never overlap and a ShedLock
+         * lock still spans the cycle). Because the FIT-Connect SDK's {@code
+         * SubscriberClient} is not safe for concurrent use, one client is
+         * created per unit of concurrency per destination (lazily, on first
+         * contention) - so each increment adds, per destination, one OAuth
+         * client-credentials login and one schema initialisation. Keep it
+         * modest (e.g. 4-16), sized against real payload sizes and the
+         * FIT-Connect API's rate limits. Must be {@code >= 1}; {@code 1}
+         * restores strictly-sequential processing.
+         */
+        private int concurrency = 8;
+
+        /**
          * How long a submission that failed processing (including a {@link
          * #getSubmissionTimeout()} timeout) is skipped on later poll cycles
          * before being retried again. {@code null} (the default) disables

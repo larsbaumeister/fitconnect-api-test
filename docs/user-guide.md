@@ -104,11 +104,18 @@ class GewerbeanmeldungHandler {
 }
 ```
 
-**Listeners must be idempotent.** Leaving a submission unresolved (the
-default) re-delivers it on every poll — same submission, fully re-downloaded,
-re-decrypted, re-published — until something calls `accept()`/`reject()`.
-`fitconnect.receiver.default-outcome` decides what happens when nothing does
-(default `LEAVE`, safest).
+**Listeners must be idempotent, and thread-safe.** Leaving a submission
+unresolved (the default) re-delivers it on every poll — same submission, fully
+re-downloaded, re-decrypted, re-published — until something calls
+`accept()`/`reject()`. `fitconnect.receiver.default-outcome` decides what
+happens when nothing does (default `LEAVE`, safest). One destination's page is
+also processed **in parallel** — up to `fitconnect.receiver.polling.concurrency`
+submissions at once (default 8), each on its own worker thread — so your
+listener runs concurrently for different submissions and sees a page in no
+particular order. Do the real work in a durable, idempotent way (persist keyed
+by `submissionId`, then `accept()`); set `polling.concurrency: 1` for
+strictly-sequential processing. Each submission still gets its own full
+`polling.submission-timeout`.
 
 **Running multiple replicas?** Every replica polls the same destinations
 independently, so an unresolved submission is downloaded and published once

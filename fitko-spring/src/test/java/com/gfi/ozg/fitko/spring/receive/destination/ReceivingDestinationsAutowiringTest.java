@@ -97,7 +97,8 @@ class ReceivingDestinationsAutowiringTest {
         // something of their own.
         @Bean
         ReceivingDestination strayReceivingDestination() {
-            return new ReceivingDestination(STRAY_DESTINATION_ID, mock(SubscriberClient.class), null);
+            return new ReceivingDestination(
+                    STRAY_DESTINATION_ID, SubscriberClientPool.fixed(mock(SubscriberClient.class)), null);
         }
     }
 

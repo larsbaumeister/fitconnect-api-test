@@ -25,8 +25,8 @@ why and where each is handled instead.
 | `spring.autoconfigure` | `@AutoConfiguration` classes. Wiring only, no logic. |
 | `spring.config` | `ApplicationConfigFactory`/`MetadataVersions` — properties → SDK types. |
 | `spring.send` | Public sending API: `SubmissionSender`, `SubmissionToSend`, `AttachmentToSend`, `DataSetToSend`. |
-| `spring.receive` | Core receive flow: the event API (`SubmissionReceivedEvent`, `@SubmissionEventListener`, `IncomingSubmission`), the poller (`SubmissionPollingService`, `PollCycleGate`, `ShedLockPollCycleGate`), and `SubmissionProcessor`/`DefaultOutcome`. |
-| `spring.receive.destination` | `ReceivingDestination`(`s`) + `SubscriberClientFactory` — which Zustellpunkte this app receives on, and the SDK-client seam. |
+| `spring.receive` | Core receive flow: the event API (`SubmissionReceivedEvent`, `@SubmissionEventListener`, `IncomingSubmission`), the poller (`SubmissionPollingService`, `PollCycleGate`, `ShedLockPollCycleGate`), the parallel per-submission runner (`SafeguardedSubmissionRunner` — concurrency + `submission-timeout` + `retry-cooldown`), and `SubmissionProcessor`/`DefaultOutcome`. |
+| `spring.receive.destination` | `ReceivingDestination`(`s`) + `SubscriberClientFactory` + `SubscriberClientPool` — which Zustellpunkte this app receives on, the SDK-client seam, and the per-destination client pool the parallel runner borrows from. |
 | `spring.receive.metrics` | `ReceivePipelineMetrics` and its impls (Micrometer, Redis fleet, composite). Optional, Micrometer-gated. |
 | `spring.receive.cooldown` | `RetryCooldownStore` + the `Cache`-backed / in-process-fallback impls for `polling.retry-cooldown`. |
 | `spring.receive.health` | `FitConnectReceiverHealthIndicator` — the `fitConnectReceiver` Actuator contributor. |
@@ -81,7 +81,35 @@ just no bean, when it isn't.
   nothing (see `SubmissionEventListenerFactory` javadoc).
 - **Poller = `SmartLifecycle` on its own daemon thread**, not the app's
   `TaskScheduler`. `isAutoStartup()` follows `polling.enabled`. `@PreDestroy`
-  and `stop()` are deliberately not both wired to avoid a double-stop.
+  and `stop()` are deliberately not both wired to avoid a double-stop. The
+  poller only *lists* each destination (sequentially) and hands the page to
+  `SafeguardedSubmissionRunner`; it holds no executors of its own beyond the
+  single-thread scheduler.
+- **Per-submission work = `SafeguardedSubmissionRunner`, parallel by
+  default.** One `@Bean`, `AutoCloseable`. `processPage(...)` runs a
+  destination's page `polling.concurrency` (default 8) submissions at a time
+  and **blocks until the whole page is done** — so `poll()` still returns only
+  when the cycle is complete, cycles never overlap, and a ShedLock lock still
+  spans the whole cycle. Two executors mirror the original design: a fixed
+  *dispatch* pool of `concurrency` threads governs how many run at once, and a
+  cached *timeout* pool gives each in-flight submission its own interruptible
+  thread so `Future.get(submission-timeout)` can bound it (you can't interrupt
+  a blocking call on your own thread). Every safeguard is per submission:
+  `retry-cooldown` check/record, `submission-timeout` + `cancel(true)`,
+  `submissionProcessed`/`submissionFailed` metrics. `concurrency=1` is a valid
+  degenerate setting (strictly sequential); there is no separate legacy path.
+- **One `SubscriberClient` per unit of concurrency per destination
+  (`SubscriberClientPool`).** The SDK's `SubscriberClient` is **not**
+  concurrency-safe — every call reads the OAuth token from a shared,
+  unsynchronised holder (`DefaultOAuthApiService`, SDK 3.5.0: plain
+  check-then-authenticate on non-`volatile` fields; there is no
+  `synchronized`/`Atomic*` anywhere in the SDK), so two threads on one client
+  can race into re-auth storms or a `null` token. Each `ReceivingDestination`
+  therefore holds a `SubscriberClientPool`: one client created eagerly (keeps
+  key/config validation at context-refresh time), the rest lazily up to
+  `concurrency`. `ReceivingDestination.withClient(...)` borrows/returns;
+  `SubmissionPollingService` (listing), `SafeguardedSubmissionRunner`
+  (per submission) and `FitConnectCallbackController` all go through it.
 - **Retry-cooldown state = a Spring `Cache`, not an in-memory map.**
   `RetryCooldownStore` (default `CacheRetryCooldownStore`) keeps one entry per
   currently-failing submission id in a `Cache` named `fitconnect-retry-cooldown`
@@ -129,9 +157,14 @@ just no bean, when it isn't.
 At-least-once, no de-duplication. With the default `default-outcome: LEAVE`,
 an unresolved submission is fully re-downloaded, re-decrypted, re-validated,
 and re-published on every poll cycle — **listeners must be idempotent**, this
-is a hard requirement, not a suggestion. The optional ShedLock gate (see
-"Key design decisions") cuts the cross-replica ~N× re-download when running
-several replicas, but does not change the at-least-once / no-dedup contract.
+is a hard requirement, not a suggestion. It matters more now that a page is
+processed in parallel: a listener can see the submissions of one page in any
+order and on any of the `polling.concurrency` worker threads (and, with
+several replicas and no ShedLock, concurrently on more than one). The optional
+ShedLock gate (see "Key design decisions") cuts the cross-replica ~N×
+re-download when running several replicas, but does not change the
+at-least-once / no-dedup contract, and does not serialise submissions within a
+replica's own page.
 
 Auto-reject is on by default (`disable-auto-reject=false`): a
 validation/malware/decryption failure inside `requestSubmission` rejects the
@@ -142,23 +175,25 @@ soften or split that message before relying on it when debugging a delivery.
 
 ## Known limitations
 
-- Polling is sequential and single-threaded across destinations and across
-  submissions within one — no parallelism knob. Two safeguards bound the
-  damage one bad submission can do without changing that model:
-  `polling.submission-timeout` (default 10s, always on) abandons a
-  submission that stalls the cycle instead of hanging it indefinitely, and
-  `polling.retry-cooldown` (unset by default) — when configured — stops a
-  submission that fails every cycle from being retried every single cycle.
-  See `polling.submission-timeout`/`polling.retry-cooldown` in
-  [configuration.md](configuration.md). There is still no
-  way to run independent submissions concurrently within a cycle.
+- Destinations are still polled **sequentially** within a cycle; only the
+  submissions *within* one destination's page run in parallel
+  (`polling.concurrency`, default 8). A single hot destination scales with
+  `concurrency`; many destinations do not overlap with each other.
 - One page per destination per cycle (`polling.limit`, default 100); a
-  backlog beyond that drains at `limit`/`interval`.
+  backlog beyond that drains at `limit`/`interval` (× `concurrency` in
+  effective throughput once processing, not listing, is the bottleneck).
+- `polling.concurrency` costs one `SubscriberClient` (one OAuth login + one
+  schema init) per unit of concurrency **per destination** — because the SDK
+  client is not concurrency-safe (see "Key design decisions"). Clients are
+  created lazily, but a high `concurrency` × many destinations is real
+  memory and real token traffic.
 - Multi-replica polling amplifies redelivery (~N× re-download for N
-  replicas). Mitigable, opt-in, via `polling.distributed-lock.*` (ShedLock +
-  a `LockProvider` bean) — but best-effort: a `LockProvider` outage falls
-  back to every replica polling, and idempotent listeners are still
-  required. It coordinates whole cycles, not individual submissions.
+  replicas), now × `concurrency` worker throughput per replica. Mitigable,
+  opt-in, via `polling.distributed-lock.*` (ShedLock + a `LockProvider`
+  bean) — but best-effort: a `LockProvider` outage falls back to every
+  replica polling, and idempotent listeners are still required. It
+  coordinates whole cycles, not individual submissions, and does not
+  serialise a replica's own page.
 - `base-urls`/boolean overrides (`allow-insecure-public-key`, etc.) can only
   force a custom environment's default to `true`, never back to `false`
   (`Environment.merge` treats `null` as "fall through").
@@ -187,12 +222,15 @@ integration-tests project.
 
 Every bean is `@ConditionalOnMissingBean` — declare your own of the same type
 to replace it: `SenderClient`, `SubmissionSender`, `SubscriberClientFactory`,
-`ReceivingDestinations`, `SubmissionProcessor`, `SubmissionPollingService`,
-`ReceivePipelineMetrics`, `RetryCooldownStore`, `PollCycleGate`,
-`FitConnectReceiverHealthIndicator`, `fitConnectCallbackObjectMapper`.
-(A replacement `SubmissionPollingService` bean must accept `RetryCooldownStore`
-and `PollCycleGate` in its constructor the same way the default one does, or
-pass `RetryCooldownStore.NONE` / `PollCycleGate.DIRECT`.)
+`ReceivingDestinations`, `SubmissionProcessor`, `SafeguardedSubmissionRunner`,
+`SubmissionPollingService`, `ReceivePipelineMetrics`, `RetryCooldownStore`,
+`PollCycleGate`, `FitConnectReceiverHealthIndicator`,
+`fitConnectCallbackObjectMapper`.
+(A replacement `SafeguardedSubmissionRunner` owns the concurrency and the
+per-submission `submission-timeout`/`retry-cooldown` safeguards — keep those
+if you replace it. A replacement `SubmissionPollingService` bean must accept
+`SafeguardedSubmissionRunner` and `PollCycleGate` in its constructor the same
+way the default one does, or pass `PollCycleGate.DIRECT`.)
 
 ## Working on this repo
 

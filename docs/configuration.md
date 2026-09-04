@@ -108,7 +108,8 @@ separate legal entity's own registration).
 | `polling.initial-delay` | `Duration` | `5s` | Delay after application startup before the first poll. |
 | `polling.interval` | `Duration` | `30s` | Delay between the end of one poll cycle and the start of the next. |
 | `polling.limit` | int | `100` | Paging limit per destination per poll cycle. |
-| `polling.submission-timeout` | `Duration` | `10s` | Max time to download/decrypt/publish/handle *one* submission before it's abandoned for this cycle and counted as a failure. Always on - protects the single poller thread against a hung network call or a blocking bug in a listener. Enforced via `Thread.interrupt()` on a best-effort basis: a listener stuck in an uninterruptible loop keeps its worker thread alive until it eventually returns on its own. |
+| `polling.concurrency` | int | `8` | How many submissions from **one destination's** page are downloaded, decrypted, published and resolved in parallel. Destinations are still polled one after another. Must be ≥ 1; `1` = strictly sequential (the original behaviour). Every safeguard still applies per submission (each gets its own full `submission-timeout` and `retry-cooldown` bookkeeping), and the poll cycle still blocks until the whole page is done, so cycles never overlap and a ShedLock lock still spans the cycle. Because the SDK's `SubscriberClient` is not concurrency-safe, one client is created per unit of concurrency **per destination** (lazily, on first contention) - each increment adds one OAuth login + one schema init per destination. Size it against real payload sizes and the FIT-Connect API's rate limits. |
+| `polling.submission-timeout` | `Duration` | `10s` | Max time to download/decrypt/publish/handle *one* submission before it's abandoned for this cycle and counted as a failure. Always on - bounds a hung network call or a blocking bug in a listener so it can't stall the rest of the page. Each in-flight submission runs on its own worker thread with its own full budget. Enforced via `Thread.interrupt()` on a best-effort basis: a listener stuck in an uninterruptible loop keeps its worker thread alive until it eventually returns on its own. |
 | `polling.retry-cooldown` | `Duration` | unset (off) | Opt-in. When set, a submission that failed (including a `submission-timeout` timeout) is not re-fetched until this much time has passed - instead of being retried on every single cycle. Nothing is rejected; the submission still just sits on the delivery service. Unset (the default) is the original behaviour: every failure is retried next cycle, forever. |
 | `polling.retry-cooldown-cache-name` | string | `fitconnect-retry-cooldown` | Only relevant when `retry-cooldown` is set. Name of the Spring `Cache` the cooldown state (one entry per currently-failing submission id, value = ISO-8601 last-failure timestamp) is kept in. If your application has a `CacheManager`, define a cache of this name there - back it with Redis (TTL ≥ `retry-cooldown`) and the cooldown is shared across replicas. With no `CacheManager`, a self-pruning in-process cache is used and this name is cosmetic. |
 
@@ -116,14 +117,13 @@ A `Duration` property accepts a plain suffixed value (`10s`, `5m`, `500ms`)
 or ISO-8601 (`PT10S`); a bare number is interpreted as milliseconds.
 
 **Why both exist:** `submission-timeout` bounds how long one submission may
-stall the poller *within* a cycle; `retry-cooldown` bounds how often a
-submission that keeps failing gets retried *across* cycles. A submission
+run before it's abandoned *within* a cycle; `retry-cooldown` bounds how often
+a submission that keeps failing gets retried *across* cycles. A submission
 that's merely slow but eventually succeeds only ever interacts with the
 timeout; a submission that's genuinely broken (corrupt payload, a listener
 bug) hits the timeout or fails fast, then `retry-cooldown` (if configured)
-stops it from re-consuming part of every subsequent cycle. See "Known
-limitations" in [`architecture.md`](architecture.md) for the underlying
-single-threaded-poller trade-off these mitigate.
+stops it from re-consuming a worker on every subsequent cycle. Both apply
+independently to each of the `polling.concurrency` submissions in flight.
 
 The cooldown state lives in a Spring `Cache` (see
 `polling.retry-cooldown-cache-name`). An entry is removed when the submission

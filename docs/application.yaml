@@ -91,6 +91,7 @@ fitconnect:
       initial-delay: 5s   # delay after application startup before the first poll
       interval: 30s       # delay between the end of one poll and the start of the next
       limit: 100           # paging limit per destination per poll cycle
+      concurrency: 8       # submissions from one destination's page processed in parallel (>=1; 1 = strictly sequential)
       submission-timeout: 10s  # max time for one submission before it's abandoned this cycle (always on)
       # Opt-in: a failed submission is otherwise retried every single cycle,
       # forever. Uncomment to instead back off for a while after a failure.

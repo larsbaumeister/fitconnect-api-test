@@ -76,8 +76,8 @@ public class FitConnectCallbackController {
             return ResponseEntity.notFound().build();
         }
 
-        ValidationResult validation = destination.client()
-                .validateCallback(hmac, timestampInSec, rawBody, destination.callbackSecret());
+        ValidationResult validation = destination.withClient(client ->
+                client.validateCallback(hmac, timestampInSec, rawBody, destination.callbackSecret()));
         if (!validation.isValid()) {
             log.warn("Rejected callback for destination {}: failed validation", destinationId);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -96,7 +96,9 @@ public class FitConnectCallbackController {
             log.debug("Callback for destination {} listed {} submission(s)", destinationId, submissions.size());
             for (SubmissionForPickup submission : submissions) {
                 if (destinationId.equals(submission.getDestinationId())) {
-                    submissionProcessor.process(destinationId, destination.client(), submission.getSubmissionId());
+                    UUID submissionId = submission.getSubmissionId();
+                    destination.withClient(client ->
+                            submissionProcessor.process(destinationId, client, submissionId));
                 } else {
                     log.warn("Callback for destination {} listed a submission for destination {}, ignored",
                             destinationId, submission.getDestinationId());
