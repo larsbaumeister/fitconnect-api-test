@@ -86,15 +86,8 @@ public final class OrphanSweep {
         int rejected = 0;
         try {
             for (SubmissionForPickup pickup : list(destination)) {
-                try {
-                    destination.client().requestSubmission(pickup.getSubmissionId());
-                    // downloaded fine - leave it (it is either ours or a real submission)
-                } catch (RuntimeException downloadFailure) {
-                    if (tryReject(destination, pickup)) {
-                        rejected++;
-                        log.info("Rejected undecryptable submission {} on destination {} ({})",
-                                pickup.getSubmissionId(), destination.destinationId(), downloadFailure.getMessage());
-                    }
+                if (rejectIfUndecryptable(destination, pickup)) {
+                    rejected++;
                 }
             }
         } catch (RuntimeException e) {
@@ -104,35 +97,53 @@ public final class OrphanSweep {
         return rejected;
     }
 
-    private static boolean tryReject(ReceivingDestination destination, SubmissionForPickup pickup) {
-        try {
-            Problem problem = new Problem(
-                    Problem.SCHEMA_URL + "technical-error",
-                    "Undecryptable",
-                    "fitko-spring-it: submission could not be decrypted with the configured keys; cleared by test setup",
-                    "other");
-            destination.client().rejectSubmission(pickup, List.of(problem));
-            return true;
-        } catch (RuntimeException e) {
-            log.debug("Could not reject undecryptable submission {}: {}", pickup.getSubmissionId(), e.toString());
-            return false;
-        }
+    /**
+     * Downloads {@code pickup} and, if that fails, rejects it - both done with
+     * the same borrowed client inside one {@link ReceivingDestination#withClient}
+     * call, since the pool must not have a client retained past the callback.
+     */
+    private static boolean rejectIfUndecryptable(ReceivingDestination destination, SubmissionForPickup pickup) {
+        return Boolean.TRUE.equals(destination.withClient(client -> {
+            try {
+                client.requestSubmission(pickup.getSubmissionId());
+                return false; // downloaded fine - leave it (it is either ours or a real submission)
+            } catch (RuntimeException downloadFailure) {
+                try {
+                    Problem problem = new Problem(
+                            Problem.SCHEMA_URL + "technical-error",
+                            "Undecryptable",
+                            "fitko-spring-it: submission could not be decrypted with the configured keys; cleared by test setup",
+                            "other");
+                    client.rejectSubmission(pickup, List.of(problem));
+                    log.info("Rejected undecryptable submission {} on destination {} ({})",
+                            pickup.getSubmissionId(), destination.destinationId(), downloadFailure.getMessage());
+                    return true;
+                } catch (RuntimeException e) {
+                    log.debug("Could not reject undecryptable submission {}: {}",
+                            pickup.getSubmissionId(), e.toString());
+                    return false;
+                }
+            }
+        }));
     }
 
     private static List<SubmissionForPickup> list(ReceivingDestination destination) {
-        return destination.client().getAvailableSubmissionsForDestination(destination.destinationId(), 0, PAGE);
+        return destination.withClient(
+                client -> client.getAvailableSubmissionsForDestination(destination.destinationId(), 0, PAGE));
     }
 
     private static boolean acceptIfSuiteSubmission(ReceivingDestination destination, UUID submissionId) {
         try {
-            ReceivedSubmission submission = destination.client().requestSubmission(submissionId);
-            if (!Payloads.containsAnySuiteMarker(safeData(submission))) {
-                return false;
-            }
-            submission.acceptSubmission();
-            log.info("Orphan sweep accepted leftover submission {} on destination {}",
-                    submissionId, destination.destinationId());
-            return true;
+            return Boolean.TRUE.equals(destination.withClient(client -> {
+                ReceivedSubmission submission = client.requestSubmission(submissionId);
+                if (!Payloads.containsAnySuiteMarker(safeData(submission))) {
+                    return false;
+                }
+                submission.acceptSubmission();
+                log.info("Orphan sweep accepted leftover submission {} on destination {}",
+                        submissionId, destination.destinationId());
+                return true;
+            }));
         } catch (RuntimeException e) {
             log.debug("Orphan sweep skipped submission {}: {}", submissionId, e.toString());
             return false;
