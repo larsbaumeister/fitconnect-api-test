@@ -9,9 +9,9 @@ import java.util.UUID;
 /**
  * Fans every {@link ReceivePipelineMetrics} callback out to several
  * delegates, so the receive pipeline can report to the local Micrometer
- * meters and the shared (Redis) fleet counters at the same time. One
- * delegate throwing does not stop the others - the pipeline must never be
- * aborted by a metrics failure.
+ * meters and any extra {@link ReceivePipelineMetrics} a consumer contributes
+ * at the same time. One delegate throwing does not stop the others - the
+ * pipeline must never be aborted by a metrics failure.
  */
 @Slf4j
 public class CompositeReceivePipelineMetrics implements ReceivePipelineMetrics {

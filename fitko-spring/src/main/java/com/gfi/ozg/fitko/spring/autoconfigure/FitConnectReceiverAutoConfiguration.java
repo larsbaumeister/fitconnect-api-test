@@ -183,9 +183,8 @@ public class FitConnectReceiverAutoConfiguration {
 
     // The pipeline can have more than one ReceivePipelineMetrics: the
     // per-instance Micrometer meters (FitConnectReceiveMetricsAutoConfiguration)
-    // and, opt-in, the shared Redis fleet counters
-    // (FitConnectReceiveSharedMetricsAutoConfiguration). Fan out to all of
-    // them; NOOP beans (Micrometer absent, or Redis misconfigured) are dropped.
+    // and any extra ReceivePipelineMetrics bean a consumer contributes. Fan
+    // out to all of them; NOOP beans (e.g. Micrometer absent) are dropped.
     private static ReceivePipelineMetrics resolveMetrics(ObjectProvider<ReceivePipelineMetrics> metrics) {
         List<ReceivePipelineMetrics> active = metrics.orderedStream()
                 .filter(m -> m != ReceivePipelineMetrics.NOOP)

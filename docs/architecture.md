@@ -27,7 +27,7 @@ why and where each is handled instead.
 | `spring.send` | Public sending API: `SubmissionSender`, `SubmissionToSend`, `AttachmentToSend`, `DataSetToSend`. |
 | `spring.receive` | Core receive flow: the event API (`SubmissionReceivedEvent`, `@SubmissionEventListener`, `IncomingSubmission`), the poller (`SubmissionPollingService`, `PollCycleGate`, `ShedLockPollCycleGate`), the parallel per-submission runner (`SafeguardedSubmissionRunner` — concurrency + `submission-timeout` + `retry-cooldown`), and `SubmissionProcessor`/`DefaultOutcome`. |
 | `spring.receive.destination` | `ReceivingDestination`(`s`) + `SubscriberClientFactory` + `SubscriberClientPool` — which Zustellpunkte this app receives on, the SDK-client seam, and the per-destination client pool the parallel runner borrows from. |
-| `spring.receive.metrics` | `ReceivePipelineMetrics` and its impls (Micrometer, Redis fleet, composite). Optional, Micrometer-gated. |
+| `spring.receive.metrics` | `ReceivePipelineMetrics` and its impls (Micrometer, composite). Optional, Micrometer-gated. |
 | `spring.receive.cooldown` | `RetryCooldownStore` + the `Cache`-backed / in-process-fallback impls for `polling.retry-cooldown`. |
 | `spring.receive.health` | `FitConnectReceiverHealthIndicator` — the `fitConnectReceiver` Actuator contributor. |
 | `spring.receive.callback` | The webhook controller. |
@@ -50,7 +50,6 @@ FitConnectAutoConfiguration (core)
  ├─ FitConnectSenderAutoConfiguration        (fitconnect.sender.enabled)
  └─ FitConnectReceiverAutoConfiguration      (fitconnect.receiver.enabled)
      ├─ FitConnectReceiveMetricsAutoConfiguration  (before receiver; needs Micrometer on classpath)
-     ├─ FitConnectReceiveSharedMetricsAutoConfiguration (before receiver; needs Micrometer + Spring Data Redis + shared-metrics.enabled=true)
      ├─ FitConnectPollLockAutoConfiguration         (before receiver; needs shedlock-core + a LockProvider bean)
      ├─ FitConnectReceiveHealthAutoConfiguration    (after receiver; needs Actuator health API)
      └─ FitConnectCallbackAutoConfiguration         (after receiver; needs spring-boot-starter-web + callback.enabled=true)
@@ -128,14 +127,12 @@ just no bean, when it isn't.
   poller depends only on the `PollCycleGate` interface, never on
   `net.javacrumbs.shedlock`. Callbacks are never gated.
 - **Metrics fan-out.** `ReceivePipelineMetrics` can have several
-  implementations wired at once - the per-instance Micrometer meters and,
-  opt-in, `RedisReceivePipelineMetrics` (shared Redis counters +
-  `fitconnect.receive.fleet.*` gauges, from
-  `FitConnectReceiveSharedMetricsAutoConfiguration`, gated on
-  `shared-metrics.enabled=true` and Spring Data Redis). `resolveMetrics(...)`
+  implementations wired at once - the per-instance Micrometer meters plus any
+  extra `ReceivePipelineMetrics` bean a consumer contributes. `resolveMetrics(...)`
   in the receiver auto-config collects every non-`NOOP` bean and wraps them
   in `CompositeReceivePipelineMetrics`; one impl throwing never aborts the
-  poll cycle or the other impls.
+  poll cycle or the other impls. Fleet-wide aggregation across replicas is
+  left to the monitoring backend (e.g. Grafana).
 - **Fail-fast config.** A missing/invalid property throws
   `FitConnectConfigurationException` at context-refresh time, with a
   property-path message — never mid-request.

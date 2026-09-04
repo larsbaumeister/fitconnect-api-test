@@ -131,19 +131,6 @@
       <optional>true</optional>
     </dependency>
 
-    <!-- Optional: opt-in fleet-wide receive metrics
-         (fitconnect.receiver.shared-metrics.enabled=true). Just the API type
-         (StringRedisTemplate) so FitConnectReceiveSharedMetricsAutoConfiguration
-         can be @ConditionalOnClass-gated and compile; the consumer brings the
-         actual Redis driver via spring-boot-starter-data-redis and configures
-         spring.data.redis.*. Not propagated (optional=true), so a consumer
-         that doesn't opt in pulls in no Redis client and sees no change. -->
-    <dependency>
-      <groupId>org.springframework.data</groupId>
-      <artifactId>spring-data-redis</artifactId>
-      <optional>true</optional>
-    </dependency>
-
     <!-- Generates META-INF/spring-configuration-metadata.json from the
          @ConfigurationProperties javadoc, so fitconnect.* keys get IDE
          autocomplete/descriptions in a consuming application. Compile-time

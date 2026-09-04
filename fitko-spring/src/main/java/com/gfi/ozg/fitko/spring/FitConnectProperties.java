@@ -149,38 +149,6 @@ public class FitConnectProperties {
 
         private final Polling polling = new Polling();
         private final Callback callback = new Callback();
-        private final SharedMetrics sharedMetrics = new SharedMetrics();
-
-        /**
-         * Opt-in fleet-wide receive metrics. The per-instance {@code
-         * fitconnect.receive.*} Micrometer meters are always local to one
-         * replica; with several replicas you normally aggregate them in your
-         * monitoring backend. Enable this to <em>also</em> keep the counts in
-         * Redis, shared by every replica, and re-publish them as {@code
-         * fitconnect.receive.fleet.*} gauges - so a scrape of any single
-         * replica shows the whole fleet's totals (aggregate those with {@code
-         * max}, never {@code sum}).
-         *
-         * <p>Requires Spring Data Redis on the classpath (an optional
-         * dependency of this starter - bring {@code
-         * spring-boot-starter-data-redis} and configure {@code
-         * spring.data.redis.*}) and Micrometer for the gauges. Inert with
-         * neither.
-         */
-        @Getter
-        @Setter
-        public static class SharedMetrics {
-
-            /** {@code true} to keep receive counts in Redis and expose the {@code fitconnect.receive.fleet.*} gauges. */
-            private boolean enabled = false;
-
-            /**
-             * Prefix for the Redis keys the shared counts live under. Change
-             * it only if several unrelated applications share one Redis and
-             * would otherwise collide.
-             */
-            private String keyPrefix = "fitconnect:receive:";
-        }
 
         /**
          * One Zustellpunkt (destination) this application receives on, and

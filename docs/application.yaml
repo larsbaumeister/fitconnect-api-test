@@ -108,14 +108,6 @@ fitconnect:
       #   lock-at-most-for: 5m   # default: 10 x interval
       #   lock-at-least-for: 30s  # default: interval
 
-    # Opt-in: also keep the receive counts in Redis, shared by every replica,
-    # and expose them as fitconnect.receive.fleet.* gauges (any one replica's
-    # scrape then shows the whole fleet's totals - aggregate with max, not
-    # sum). Needs spring-boot-starter-data-redis + spring.data.redis.*.
-    # shared-metrics:
-    #   enabled: true
-    #   key-prefix: "fitconnect:receive:"
-
     # Optional webhook endpoint FIT-Connect can push new-submission
     # notifications to, instead of waiting for the next poll. Off by
     # default - needs spring-boot-starter-web on the classpath (an optional

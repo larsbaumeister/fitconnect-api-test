@@ -188,31 +188,8 @@ your monitoring backend — add an `instance`/`pod` tag and use `sum by
 (a submission left unresolved is re-found and re-processed every cycle by
 every replica), not distinct submissions. Enabling
 `polling.distributed-lock.*` removes the per-replica multiplication (only one
-replica polls per cycle); `shared-metrics` below gives a single fleet total.
-
-**Shared fleet metrics** (`fitconnect.receiver.shared-metrics.*`) — opt-in.
-When `enabled=true` and Spring Data Redis is on the classpath (bring
-`spring-boot-starter-data-redis`, configure `spring.data.redis.*`), every
-replica also atomically increments shared Redis counters and re-publishes
-them as `fitconnect.receive.fleet.*` gauges, so a scrape of **any single**
-replica reports the whole fleet's totals:
-
-| Meter | Type | Meaning |
-|---|---|---|
-| `fitconnect.receive.fleet.submissions.found` | gauge | Fleet-wide total, tagged `destination`. |
-| `fitconnect.receive.fleet.submissions.processed` | gauge | Fleet-wide total, tagged `destination`. |
-| `fitconnect.receive.fleet.submissions.failed` | gauge | Fleet-wide total, tagged `destination`. |
-| `fitconnect.receive.fleet.poll.count` | gauge | Fleet-wide poll count, tagged `destination`, `outcome=success\|failure`. |
-
-Every replica reports the **same** value, so aggregate the `fleet.*` gauges
-with `max` (or scrape one instance) — **never `sum`**. A Redis outage is
-logged at debug and never breaks a poll cycle; the gauges report `NaN` until
-Redis is back. The per-instance `fitconnect.receive.*` meters are unchanged.
-
-| Property | Type | Default | Notes |
-|---|---|---|---|
-| `shared-metrics.enabled` | boolean | `false` | Opt in. Needs Spring Data Redis + a `StringRedisTemplate` bean; logs a warning and does nothing if the property is set without them. |
-| `shared-metrics.key-prefix` | string | `fitconnect:receive:` | Redis key namespace; change only if unrelated apps share one Redis. |
+replica polls per cycle). Fleet-wide totals are the monitoring backend's job
+— aggregate the per-instance meters there (e.g. in Grafana).
 
 **Health indicator** — active when Spring Boot Actuator's health API
 (`spring-boot-health`) is present. Adds a `fitConnectReceiver` entry to
