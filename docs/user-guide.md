@@ -45,9 +45,9 @@ fitconnect:
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
     destinations: # every destination this app receives on; one poller handles them all
       - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/ihk-a/signing_key.json
+        signing-key: file:/etc/fitconnect/destination-a/signing_key.json
         decryption-keys:
-          - file:/etc/fitconnect/ihk-a/decryption_key.json
+          - file:/etc/fitconnect/destination-a/decryption_key.json
 ```
 
 Each destination is its own Zustellpunkt with its own key pair, so each

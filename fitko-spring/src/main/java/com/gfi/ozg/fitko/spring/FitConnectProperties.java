@@ -28,11 +28,11 @@ import java.util.UUID;
  *     client-secret: ...
  *     destinations:
  *       - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
- *         signing-key: file:/etc/fitconnect/ihk-a/signing_key.json
- *         decryption-keys: file:/etc/fitconnect/ihk-a/decryption_key.json
+ *         signing-key: file:/etc/fitconnect/destination-a/signing_key.json
+ *         decryption-keys: file:/etc/fitconnect/destination-a/decryption_key.json
  *       - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
- *         signing-key: file:/etc/fitconnect/ihk-b/signing_key.json
- *         decryption-keys: file:/etc/fitconnect/ihk-b/decryption_key.json
+ *         signing-key: file:/etc/fitconnect/destination-b/signing_key.json
+ *         decryption-keys: file:/etc/fitconnect/destination-b/decryption_key.json
  * }</pre>
  *
  * <p>This class and every nested class here is a plain {@code @Getter}/
@@ -129,7 +129,7 @@ public class FitConnectProperties {
          * <p>Each destination has its own signing/decryption keys, since a
          * FIT-Connect Zustellpunkt is registered with its own key pair
          * regardless of which subscriber client polls it (e.g. distinct
-         * Kammern each managing their own certificates, even where they
+         * authorities each managing their own certificates, even where they
          * happen to share one client-id/client-secret). Internally this
          * means one SDK {@code SubscriberClient} per destination.
          */

@@ -8,7 +8,7 @@ All documentation for this repository lives in this directory.
 | [`configuration.md`](configuration.md) | Using `fitko-spring` | Every `fitconnect.*` property: type, default, when it's required. |
 | [`application.yaml`](application.yaml) | Using `fitko-spring` | A full, annotated example configuration. Also bound in a test (`SampleApplicationYamlTest`) so it can't drift from the code. |
 | [`architecture.md`](architecture.md) | Working on `fitko-spring` | Goal, non-goals, package layout, auto-configuration chain, key design decisions, delivery semantics, known limitations, extension points. |
-| [`identity-routing-trust.md`](identity-routing-trust.md) | Integrators | What a FIT-Connect submission does and doesn't tell you about the applicant's identity, the responsible Kammer, and the trust level — and what you have to build yourself. |
+| [`identity-routing-trust.md`](identity-routing-trust.md) | Integrators | What a FIT-Connect submission does and doesn't tell you about the applicant's identity, the responsible authority, and the trust level — and what you have to build yourself. |
 
 The two example projects document themselves in their own `README.md`:
 

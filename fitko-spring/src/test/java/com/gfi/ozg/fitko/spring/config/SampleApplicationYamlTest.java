@@ -69,14 +69,14 @@ class SampleApplicationYamlTest {
         assertThat(destinationA.getSigningKey()).isNotNull();
         assertThat(destinationA.getDecryptionKeys()).hasSize(1);
         assertThat(destinationA.getClientId()).isNull(); // falls back to receiver.client-id
-        assertThat(destinationA.getCallbackSecret()).isEqualTo("ihk-a-callback-secret");
+        assertThat(destinationA.getCallbackSecret()).isEqualTo("destination-a-callback-secret");
 
         FitConnectProperties.Receiver.Destination destinationB = destinations.get(1);
         assertThat(destinationB.getId()).isEqualTo(DESTINATION_B);
         assertThat(destinationB.getSigningKey()).isNotNull();
         assertThat(destinationB.getDecryptionKeys()).hasSize(1);
-        assertThat(destinationB.getClientId()).isEqualTo("ihk-b-id");
-        assertThat(destinationB.getClientSecret()).isEqualTo("ihk-b-secret");
+        assertThat(destinationB.getClientId()).isEqualTo("destination-b-id");
+        assertThat(destinationB.getClientSecret()).isEqualTo("destination-b-secret");
         assertThat(destinationB.getCallbackSecret()).isNull(); // only reachable via polling
 
         assertThat(properties.getReceiver().getPolling().isEnabled()).isTrue();
@@ -102,9 +102,9 @@ class SampleApplicationYamlTest {
         fakeEnvVars.put("FITCONNECT_SENDER_CLIENT_SECRET", "sender-secret");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_ID", "receiver-id");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_SECRET", "receiver-secret");
-        fakeEnvVars.put("FITCONNECT_IHK_A_CALLBACK_SECRET", "ihk-a-callback-secret");
-        fakeEnvVars.put("FITCONNECT_IHK_B_CLIENT_ID", "ihk-b-id");
-        fakeEnvVars.put("FITCONNECT_IHK_B_CLIENT_SECRET", "ihk-b-secret");
+        fakeEnvVars.put("FITCONNECT_DESTINATION_A_CALLBACK_SECRET", "destination-a-callback-secret");
+        fakeEnvVars.put("FITCONNECT_DESTINATION_B_CLIENT_ID", "destination-b-id");
+        fakeEnvVars.put("FITCONNECT_DESTINATION_B_CLIENT_SECRET", "destination-b-secret");
 
         MutablePropertySources sources = new MutablePropertySources();
         sources.addLast(new MapPropertySource("fakeEnv", fakeEnvVars));

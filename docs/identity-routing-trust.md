@@ -1,4 +1,4 @@
-# Identity, Kammer-Routing & Trust Level in a submission
+# Identity, Routing & Trust Level in a submission
 
 FIT-Connect is a transport layer, not an identity or routing authority. Here's exactly
 what it gives you for each of these three questions, and what you still have to build
@@ -46,35 +46,37 @@ attach one.
    `IdentificationReport`, when present, is an authenticated assertion. Everything
    else is just form input.
 
-## 2. Finding the responsible Kammer for a submission
+## 2. Finding the responsible authority for a submission
 
-FIT-Connect doesn't know what a Kammer is — it only routes by **LeiKa-Schlüssel +
-region** (ARS / AGS / Area).
+FIT-Connect doesn't model administrative responsibility — it only routes by
+**LeiKa-Schlüssel + region** (ARS / AGS / Area).
 
-**Decision: the portal routes, we don't re-check on receipt.** The Antragsteller
+**Decision: the portal routes, we don't re-check on receipt.** The applicant
 picks the Leistung through the portal's Leistungsfinder, the portal (or its
 Formular-Server) resolves the destination — typically via the Router API on the
-*sender* side — and submits straight to that IHK's registered destination. We take
-that at face value: no `findAreas`/`findDestinations` re-check against the payload's
-Sitz on our end, and no assumption that the Antragsteller picked wrong.
+*sender* side — and submits straight to that destination. We take that at face
+value: no `findAreas`/`findDestinations` re-check against the payload's location
+data on our end, and no assumption that the applicant picked wrong.
 
 **What we still have to do, once, up front:**
 
-- Register one `Destination` per IHK tenant, `Service.regions` set to the ARS codes
-  of every Kreis in that IHK's Bezirk — fully scriptable via `DestinationClient`, no
-  manual SSP work.
-- Source that region list from a static ARS→IHK-Nummer table. Every
-  Landkreis/kreisfreie Stadt belongs to exactly one IHK, never split, but there's no
-  ready-made public machine-readable CSV — build it once from DIHK/IHK-Finder data.
+- Register one `Destination` per receiving tenant, `Service.regions` set to the
+  ARS / AGS codes of every region that tenant is responsible for — fully scriptable
+  via `DestinationClient`, no manual SSP work.
+- Source that region list from whatever authoritative mapping defines your
+  organisation's territorial responsibility (Zuständigkeitsgebiet). If no
+  ready-made machine-readable list exists, build it once and keep it under version
+  control.
 - This table is what makes the portal's own routing land correctly in the first
   place; it's setup work, not a per-request lookup.
 
-**If it later turns out the selected IHK isn't responsible** (discovered during case
-processing, e.g. the Sitz doesn't fall in this IHK's Bezirk after all): reject the
-submission, with a `Problem.detail` pointing the applicant/portal at the correct
-Kammer — not a forced handover to the other Kammer, and not a receipt-time re-route.
+**If it later turns out the chosen destination isn't responsible** (discovered
+during case processing, e.g. the applicant's location falls outside this tenant's
+region after all): reject the submission, with a `Problem.detail` pointing the
+applicant/portal at the correct authority — not a forced handover, and not a
+receipt-time re-route.
 
-**Fallback:** ambiguous or missing Sitz data → default to a catch-all intake
+**Fallback:** ambiguous or missing location data → default to a catch-all intake
 destination and a manual triage queue, rather than guessing.
 
 ## 3. Getting the trust level (Vertrauensniveau) from a submission

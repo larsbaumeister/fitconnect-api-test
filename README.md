@@ -23,7 +23,7 @@ All project documentation lives in **[`docs/`](docs)**:
   config.
 - **[Architecture](docs/architecture.md)** — goal, design decisions, known
   limitations. Start here to work on the library.
-- **[Identity, Kammer-routing & trust level](docs/identity-routing-trust.md)**
+- **[Identity, routing & trust level](docs/identity-routing-trust.md)**
   — what a FIT-Connect submission does and doesn't tell you about the
   applicant, and what you have to build yourself.
 

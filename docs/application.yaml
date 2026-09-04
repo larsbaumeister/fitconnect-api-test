@@ -45,25 +45,25 @@ fitconnect:
     # one entry is required whenever receiver.enabled is true.
     destinations:
       - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/ihk-a/signing_key.json
+        signing-key: file:/etc/fitconnect/destination-a/signing_key.json
         decryption-keys:
-          - file:/etc/fitconnect/ihk-a/decryption_key.json
+          - file:/etc/fitconnect/destination-a/decryption_key.json
           # add a second entry here while rotating keys; the incoming JWE's
           # `kid` picks the right one automatically, no code change needed
         # Only needed if callback.enabled below is true, and only for a
         # destination that should actually receive callbacks - the secret
         # given to FIT-Connect when registering this destination's Callback.
-        callback-secret: ${FITCONNECT_IHK_A_CALLBACK_SECRET}
+        callback-secret: ${FITCONNECT_DESTINATION_A_CALLBACK_SECRET}
 
       - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
-        signing-key: file:/etc/fitconnect/ihk-b/signing_key.json
+        signing-key: file:/etc/fitconnect/destination-b/signing_key.json
         decryption-keys:
-          - file:/etc/fitconnect/ihk-b/decryption_key.json
+          - file:/etc/fitconnect/destination-b/decryption_key.json
         # Only needed if this destination was registered under a different
         # Self-Service-Portal client than the shared receiver.client-id/
         # client-secret above (e.g. a separate legal entity's registration).
-        client-id: ${FITCONNECT_IHK_B_CLIENT_ID}
-        client-secret: ${FITCONNECT_IHK_B_CLIENT_SECRET}
+        client-id: ${FITCONNECT_DESTINATION_B_CLIENT_ID}
+        client-secret: ${FITCONNECT_DESTINATION_B_CLIENT_SECRET}
         # This destination has no callback-secret, so it's only ever reached
         # through polling, even with callback.enabled: true below.
 
