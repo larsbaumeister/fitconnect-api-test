@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+             id="fitconnect-next-step-routing"
+             name="FIT-Connect next-step routing"
+             namespace="http://gfi.com/ozg/fitko/camunda"
+             exporter="hand-written"
+             exporterVersion="1.0">
+
+  <!-- Runs AFTER the submission has been persisted and accepted. It only
+       decides what the Verwaltungssystem does with it internally next,
+       keyed on the service (Leika key). -->
+  <decision id="next-step-routing" name="Next-step routing" camunda:historyTimeToLive="P30D">
+    <decisionTable id="nextStepRoutingTable" hitPolicy="FIRST">
+
+      <input id="input_serviceIdentifier" label="Service identifier (Leika key)">
+        <inputExpression id="inputExpr_serviceIdentifier" typeRef="string">
+          <text>serviceIdentifier</text>
+        </inputExpression>
+      </input>
+
+      <input id="input_caseKnown" label="Follow-up to a known case?">
+        <inputExpression id="inputExpr_caseKnown" typeRef="boolean">
+          <text>caseKnown</text>
+        </inputExpression>
+      </input>
+
+      <!-- What to do next: FORWARD (hand to an internal system / queue named by
+           nextStepTarget) or ARCHIVE (record only, no further processing). -->
+      <output id="output_nextStep" name="nextStep" typeRef="string"/>
+      <output id="output_nextStepTarget" name="nextStepTarget" typeRef="string"/>
+
+      <!-- 1: Baugenehmigung -> building-permit Fachverfahren. -->
+      <rule id="rule_bauantrag">
+        <inputEntry id="rule1_in1"><text>"urn:de:fim:leika:leistung:99000000000001"</text></inputEntry>
+        <inputEntry id="rule1_in2"><text>-</text></inputEntry>
+        <outputEntry id="rule1_out1"><text>"FORWARD"</text></outputEntry>
+        <outputEntry id="rule1_out2"><text>"bauantrag-fachverfahren"</text></outputEntry>
+      </rule>
+
+      <!-- 2: Gewerbeanmeldung -> trade-registration Fachverfahren. -->
+      <rule id="rule_gewerbe">
+        <inputEntry id="rule2_in1"><text>"urn:de:fim:leika:leistung:99000000000002"</text></inputEntry>
+        <inputEntry id="rule2_in2"><text>-</text></inputEntry>
+        <outputEntry id="rule2_out1"><text>"FORWARD"</text></outputEntry>
+        <outputEntry id="rule2_out2"><text>"gewerbe-fachverfahren"</text></outputEntry>
+      </rule>
+
+      <!-- 3: any follow-up to a case we already handled -> clerk queue. -->
+      <rule id="rule_followup">
+        <inputEntry id="rule3_in1"><text>-</text></inputEntry>
+        <inputEntry id="rule3_in2"><text>true</text></inputEntry>
+        <outputEntry id="rule3_out1"><text>"FORWARD"</text></outputEntry>
+        <outputEntry id="rule3_out2"><text>"sachbearbeitung-followup"</text></outputEntry>
+      </rule>
+
+      <!-- 4: default - keep the record, nothing else to do. -->
+      <rule id="rule_default">
+        <inputEntry id="rule4_in1"><text>-</text></inputEntry>
+        <inputEntry id="rule4_in2"><text>-</text></inputEntry>
+        <outputEntry id="rule4_out1"><text>"ARCHIVE"</text></outputEntry>
+        <outputEntry id="rule4_out2"><text>""</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_nextStepRouting">
+      <dmndi:DMNShape id="DMNShape_nextStepRouting" dmnElementRef="next-step-routing">
+        <dc:Bounds height="80" width="180" x="160" y="100"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>

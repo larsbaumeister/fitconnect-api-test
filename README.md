@@ -50,6 +50,15 @@ The two example projects keep their own `README.md` as their entry point
   `cd fitko-spring-integration-tests && mvn verify` (see its README for the
   environment variables; runs green and self-skips without them).
 
+## Camunda 7 process application
+
+- **[`fitko-camunda7/`](fitko-camunda7)** — a standalone WAR for a Camunda
+  Platform 7 shared engine on **WildFly** (plain Jakarta EE / CDI, no Spring):
+  a self-triggering timer process that polls a destination for new submissions
+  and routes each one through an embedded sub-process driven by a DMN decision
+  table. `cd fitko-camunda7 && mvn package` builds
+  `target/fitko-fitconnect-camunda7.war`.
+
 ## Prerequisites
 
 - JDK 17 or newer (Spring Boot 4's baseline)

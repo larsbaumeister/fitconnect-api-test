@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<process-application
+    xmlns="http://www.camunda.org/schema/1.0/ProcessApplication"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <process-archive name="fitko-fitconnect-camunda7">
+    <process-engine>default</process-engine>
+    <properties>
+      <!-- Pick up every .bpmn / .dmn on the classpath of this application. -->
+      <property name="isScanForProcessDefinitions">true</property>
+      <!-- Keep deployed definitions (and their instances/history) when the WAR
+           is undeployed or the server stops; a redeploy adds a new version. -->
+      <property name="isDeleteUponUndeploy">false</property>
+      <property name="resumePreviousVersions">true</property>
+      <property name="resumePreviousBy">deployment-name</property>
+    </properties>
+  </process-archive>
+
+</process-application>

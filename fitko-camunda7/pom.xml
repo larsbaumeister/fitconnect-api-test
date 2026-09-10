@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Standalone on purpose, like the sibling fitko-spring project: no parent
+       pom, no shared code. `cd fitko-camunda7 && mvn package` builds the WAR
+       on its own. -->
+  <groupId>com.gfi.ozg.fitko</groupId>
+  <artifactId>fitko-camunda7</artifactId>
+  <version>1.0.0</version>
+  <packaging>war</packaging>
+
+  <name>fitko-camunda7</name>
+  <description>
+    A Camunda Platform 7 process application (WAR, shared engine on WildFly)
+    that polls the FIT-Connect delivery service for new submissions on a
+    configurable timer and routes each one through an embedded sub-process
+    driven by a DMN decision table.
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Camunda 7.23 needs Java 17+. -->
+    <maven.compiler.release>17</maven.compiler.release>
+
+    <!-- Camunda Platform 7. Must match the *shared engine* of the WildFly
+         distribution you deploy onto. 7.20+ is Jakarta EE 10 (jakarta.*
+         namespace, WildFly 27+); this project targets that line.
+         See https://docs.camunda.org/enterprise/download/#camunda-platform-7 -->
+    <camunda.version>7.23.0</camunda.version>
+
+    <!-- The one real dependency this WAR ships: the FIT-Connect Java SDK.
+         See https://central.sonatype.com/artifact/dev.fitko.fitconnect.sdk/client
+         and https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/changelog -->
+    <fitconnect-sdk.version>3.5.0</fitconnect-sdk.version>
+
+    <lombok.version>1.18.46</lombok.version>
+
+    <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+    <maven-war-plugin.version>3.4.0</maven-war-plugin.version>
+    <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Aligns camunda-engine, camunda-bpm-junit5 and the DMN engine on
+           ${camunda.version}. -->
+      <dependency>
+        <groupId>org.camunda.bpm</groupId>
+        <artifactId>camunda-bom</artifactId>
+        <version>${camunda.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- ================================================================
+         Provided by the WildFly server + Camunda shared engine subsystem.
+         Compiled against, never bundled into the WAR.
+         ================================================================ -->
+
+    <!-- CDI, @Inject, @Named, jakarta.servlet, jakarta.annotation - all
+         supplied by WildFly. -->
+    <dependency>
+      <groupId>jakarta.platform</groupId>
+      <artifactId>jakarta.jakartaee-api</artifactId>
+      <version>10.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.camunda.bpm</groupId>
+      <artifactId>camunda-engine</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- The engine's slf4j binding comes from the distribution; don't ship a
+         second one. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.16</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>${lombok.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- ================================================================
+         Bundled into WEB-INF/lib - the FIT-Connect Java SDK (subscriber
+         side). Pulls its own jackson/okhttp/nimbus-jose-jwt/bouncycastle
+         transitively.
+         ================================================================ -->
+    <dependency>
+      <groupId>dev.fitko.fitconnect.sdk</groupId>
+      <artifactId>client</artifactId>
+      <version>${fitconnect-sdk.version}</version>
+    </dependency>
+
+    <!-- ================================================================
+         Test only.
+         ================================================================ -->
+    <dependency>
+      <groupId>org.camunda.bpm</groupId>
+      <artifactId>camunda-bpm-junit5</artifactId>
+      <version>${camunda.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.camunda.bpm.assert</groupId>
+      <artifactId>camunda-bpm-assert</artifactId>
+      <version>15.0.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <version>2.3.232</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.26.3</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>5.20.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.3</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.5.12</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>fitko-fitconnect-camunda7</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>${maven-war-plugin.version}</version>
+        <configuration>
+          <!-- Pure CDI process application: no web.xml, just WEB-INF/beans.xml. -->
+          <failOnMissingWebXml>false</failOnMissingWebXml>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-surefire-plugin.version}</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
