@@ -1,8 +1,10 @@
 package com.example.ihk;
 
+import com.example.ihk.processstarter.ProcessStarter;
+import com.example.ihk.processstarter.ProcessStarterLookup;
+import com.example.ihk.processstarter.impl.LoggingProcessStarter;
+import com.example.ihk.processstarter.impl.NoopProcessStarter;
 import com.example.ihk.routing.AntragRoutingListener;
-import com.example.ihk.routing.NoopProcessStarter;
-import com.example.ihk.routing.ProcessStarter;
 import com.example.ihk.routing.TenantDirectory;
 import com.example.ihk.support.TestJwkKeys;
 import com.gfi.ozg.fitko.spring.receive.destination.SubscriberClientFactory;
@@ -33,8 +35,11 @@ import static org.mockito.Mockito.mock;
  * whole starter plus this project's own routing beans ({@code
  * AntragRoutingProperties}, {@link TenantDirectory}, {@code
  * AntragProcessResolver}, {@link AntragRoutingListener}, {@link
- * NoopProcessStarter}) wire up together, the way they would when actually
- * deployed.
+ * ProcessStarterLookup} and both {@link ProcessStarter} implementations)
+ * wire up together, the way they would when actually deployed - including
+ * {@link ProcessStarterLookup}'s startup-time validation of every class name
+ * referenced in {@code application.yaml}'s {@code antrag-routing.*}
+ * (the context simply wouldn't start if that failed).
  */
 @SpringBootTest(classes = IhkAntragRouterApplication.class, properties = {
         "fitconnect.sender.enabled=false",
@@ -80,15 +85,32 @@ class IhkAntragRouterApplicationTests {
     TenantDirectory tenantDirectory;
 
     @Autowired
-    ProcessStarter processStarter;
+    ProcessStarterLookup processStarterLookup;
+
+    @Autowired
+    NoopProcessStarter noopProcessStarter;
+
+    @Autowired
+    LoggingProcessStarter loggingProcessStarter;
 
     @Test
     void contextLoadsAndWiresTheRoutingBeans() {
         assertThat(antragRoutingListener).isNotNull();
         assertThat(tenantDirectory).isNotNull();
-        // No custom ProcessStarter bean declared in this sample - the
-        // @ConditionalOnMissingBean default is the one actually wired.
-        assertThat(processStarter).isInstanceOf(NoopProcessStarter.class);
+        // Both implementations coexist as beans - which one runs for a given
+        // Antrag is a config-time class-name lookup, not a single injected
+        // ProcessStarter (see ProcessStarterLookup).
+        assertThat(noopProcessStarter).isNotNull();
+        assertThat(loggingProcessStarter).isNotNull();
+    }
+
+    @Test
+    void lookupResolvesEachConfiguredClassNameToItsMatchingBean() {
+        ProcessStarter resolvedNoop = processStarterLookup.resolve(NoopProcessStarter.class.getName());
+        ProcessStarter resolvedLogging = processStarterLookup.resolve(LoggingProcessStarter.class.getName());
+
+        assertThat(resolvedNoop).isSameAs(noopProcessStarter);
+        assertThat(resolvedLogging).isSameAs(loggingProcessStarter);
     }
 
     @Configuration(proxyBeanMethods = false)

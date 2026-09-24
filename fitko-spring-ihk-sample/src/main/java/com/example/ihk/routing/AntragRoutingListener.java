@@ -1,5 +1,8 @@
 package com.example.ihk.routing;
 
+import com.example.ihk.processstarter.ProcessStarter;
+import com.example.ihk.processstarter.ProcessStartRequest;
+import com.example.ihk.processstarter.ProcessStarterLookup;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import com.gfi.ozg.fitko.spring.receive.SubmissionEventListener;
 import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
@@ -7,13 +10,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.Optional;
 
 /**
  * Ties the pieces together for every incoming Antrag: resolve which tenant
- * received it, then which process that tenant runs for its Leistung, then
- * hand off to {@link ProcessStarter}.
+ * received it, then which {@link ProcessStarter} implementation that tenant
+ * uses for its Leistung ({@link AntragProcessResolver}), then resolve that
+ * class name to the actual bean ({@link ProcessStarterLookup}) and hand off
+ * to it.
  *
  * <p>No {@code serviceIds} filter on {@link SubmissionEventListener} - unlike
  * fitko-spring-sample's per-Leistung listeners, this one has to see every
@@ -22,10 +26,16 @@ import java.util.Optional;
  * <p><b>Idempotency:</b> delivery is at-least-once, no de-duplication (see
  * fitko-spring's architecture.md, "Delivery semantics") - a replay between
  * {@link IncomingSubmission#accept()} and the delivery service's own delete
- * taking effect is possible. {@link ProcessStarter#start} must itself be
- * idempotent for the same {@code submissionId} (e.g. a real Camunda-backed
- * implementation should key the process instance's business key on it and
- * no-op on a duplicate).
+ * taking effect is possible. Every {@link ProcessStarter} implementation
+ * must itself be idempotent for the same {@code submissionId} (e.g. a real
+ * Camunda-backed one should key the process instance's business key on it
+ * and no-op on a duplicate).
+ *
+ * <p><b>Who calls {@code accept()}:</b> this listener does, once {@link
+ * ProcessStarter#start} returns without throwing - see {@link
+ * ProcessStartRequest}'s javadoc for why implementations must not call
+ * {@link IncomingSubmission#accept()}/{@link IncomingSubmission#reject}
+ * themselves even though the whole submission is now in their hands.
  */
 @Component
 public class AntragRoutingListener {
@@ -34,12 +44,12 @@ public class AntragRoutingListener {
 
     private final AntragProcessResolver resolver;
     private final TenantDirectory tenants;
-    private final ProcessStarter processStarter;
+    private final ProcessStarterLookup processStarters;
 
-    public AntragRoutingListener(AntragProcessResolver resolver, TenantDirectory tenants, ProcessStarter processStarter) {
+    public AntragRoutingListener(AntragProcessResolver resolver, TenantDirectory tenants, ProcessStarterLookup processStarters) {
         this.resolver = resolver;
         this.tenants = tenants;
-        this.processStarter = processStarter;
+        this.processStarters = processStarters;
     }
 
     @SubmissionEventListener
@@ -48,29 +58,22 @@ public class AntragRoutingListener {
         String leikaSchluessel = submission.getServiceType().getIdentifier();
         String tenant = tenants.tenantOf(submission.getDestinationId()).orElse("unknown-tenant");
 
-        Optional<String> processKey = resolver.resolveProcessKey(tenant, leikaSchluessel);
-        if (processKey.isEmpty()) {
-            // No tenant-specific mapping and no default-process-key: leave it
-            // on the delivery service (LEAVE, the safe default-outcome)
-            // rather than guess a process or silently drop it - see
-            // identity-routing-trust.md's "don't guess" fallback guidance.
-            // Shows up as a stuck submission in fitconnect.receive.*
-            // metrics/logs until routing config catches up.
-            log.warn("No process mapped for tenant {} / Leistung {} (submission {}) - leaving unresolved",
+        Optional<String> processStarterClassName = resolver.resolveProcessStarterClassName(tenant, leikaSchluessel);
+        if (processStarterClassName.isEmpty()) {
+            // No tenant-specific mapping and no default-process-starter-class:
+            // leave it on the delivery service (LEAVE, the safe
+            // default-outcome) rather than guess an implementation or
+            // silently drop it - see identity-routing-trust.md's "don't
+            // guess" fallback guidance. Shows up as a stuck submission in
+            // fitconnect.receive.* metrics/logs until routing config catches
+            // up.
+            log.warn("No ProcessStarter mapped for tenant {} / Leistung {} (submission {}) - leaving unresolved",
                     tenant, leikaSchluessel, submission.getSubmissionId());
             return;
         }
 
-        processStarter.start(new ProcessStartRequest(
-                processKey.get(),
-                submission.getSubmissionId(),
-                submission.getCaseId(),
-                tenant,
-                leikaSchluessel,
-                Map.of(
-                        "tenant", tenant,
-                        "leikaSchluessel", leikaSchluessel,
-                        "destinationId", submission.getDestinationId().toString())));
+        ProcessStarter processStarter = processStarters.resolve(processStarterClassName.get());
+        processStarter.start(new ProcessStartRequest(submission, tenant));
 
         submission.accept();
     }

@@ -60,28 +60,36 @@ fitconnect:
       initial-delay: 5s
       interval: ${FITCONNECT_POLL_INTERVAL:30s}
 
-# The routing decision under test: which Camunda process to start for a
-# given (tenant, Leistung) pair, keyed by tenant then by the Leistung's
-# LeiKa-Schluessel URN - config-driven so ops/business can add a Leistung, or
-# override it for one region, without a code change. See
-# com.example.ihk.routing.AntragRoutingProperties / AntragProcessResolver.
+# The routing decision under test: which ProcessStarter IMPLEMENTATION
+# CLASS handles a given (tenant, Leistung) pair, keyed by tenant then by the
+# Leistung's LeiKa-Schluessel URN - config-driven so ops/business can add a
+# Leistung, or override it for one region, without further code changes to
+# the routing itself (the implementation classes still have to exist and be
+# Spring beans - see com.example.ihk.processstarter.ProcessStarterLookup).
+# See also com.example.ihk.routing.AntragRoutingProperties / AntragProcessResolver.
 #
+# Each value is a fully-qualified class implementing ProcessStarter, not an
+# arbitrary process-key string - different Leistungen (or the same Leistung
+# for different tenants) can be handled by entirely different implementations,
+# not just a different process definition run by one shared implementation.
 # The same Leistung (99050035001000) intentionally maps to a different
-# process per tenant here, to prove that's possible: each IHK region may run
-# its own Fachverfahren for a nationally standardized Leistung. The URNs
-# below are illustrative placeholders, not real LeiKa codes - replace with
-# your actual Leistungen.
+# implementation class per tenant here, to prove that's possible: each IHK
+# region may run its own Fachverfahren - possibly through different code
+# entirely - for a nationally standardized Leistung. Both classes below are
+# stubs shipped with this sample (see their own javadoc); replace with your
+# real implementations. The LeiKa URNs are illustrative placeholders, not
+# real codes - replace with your actual Leistungen.
 antrag-routing:
-  process-by-tenant:
+  process-starter-by-tenant:
     101-aachen:
-      "urn:de:fim:leika:leistung:99050035001000": ausbildungsvertrag-process-aachen
-      "urn:de:fim:leika:leistung:99050035002000": sachkundepruefung-process
+      "urn:de:fim:leika:leistung:99050035001000": com.example.ihk.processstarter.impl.LoggingProcessStarter
+      "urn:de:fim:leika:leistung:99050035002000": com.example.ihk.processstarter.impl.NoopProcessStarter
     133-hannover:
-      "urn:de:fim:leika:leistung:99050035001000": ausbildungsvertrag-process-hannover
-      "urn:de:fim:leika:leistung:99050035002000": sachkundepruefung-process
+      "urn:de:fim:leika:leistung:99050035001000": com.example.ihk.processstarter.impl.NoopProcessStarter
+      "urn:de:fim:leika:leistung:99050035002000": com.example.ihk.processstarter.impl.NoopProcessStarter
   # Unmapped (tenant, Leistung) pairs are logged and left unresolved (not
   # guessed) when this is unset - see AntragRoutingListener.
-  default-process-key: manual-review-process
+  default-process-starter-class: com.example.ihk.processstarter.impl.NoopProcessStarter
 
 logging:
   level:

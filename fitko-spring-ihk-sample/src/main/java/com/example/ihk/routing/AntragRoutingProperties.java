@@ -1,20 +1,25 @@
 package com.example.ihk.routing;
 
+import com.example.ihk.processstarter.ProcessStarter;
+import com.example.ihk.processstarter.ProcessStarterLookup;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Config-driven mapping from (tenant, LeiKa-Schluessel) to the Camunda
- * process definition key that should be started - per-tenant, not global:
- * the same Leistung (e.g. {@code urn:de:fim:leika:leistung:99050035001000})
- * can start a different process for {@code 101-aachen} than for {@code
- * 133-hannover}, since each regional tenant may run its own Fachverfahren
- * for the same nationally standardized Leistung. {@code
- * IncomingSubmission.getServiceType().getIdentifier()} supplies the
- * Leistung side of the key; the tenant side comes from {@link
- * TenantDirectory}.
+ * Config-driven mapping from (tenant, LeiKa-Schluessel) to the {@link
+ * ProcessStarter} implementation that should handle it - by fully-qualified
+ * class name, not an arbitrary process-key string. The same Leistung (e.g.
+ * {@code urn:de:fim:leika:leistung:99050035001000}) can be wired to a
+ * different implementation class for {@code 101-aachen} than for {@code
+ * 133-hannover}, since each regional tenant may run its own Fachverfahren -
+ * possibly through entirely different code, not just a different process
+ * definition of the same engine - for the same nationally standardized
+ * Leistung. {@code IncomingSubmission.getServiceType().getIdentifier()}
+ * supplies the Leistung side of the key; the tenant side comes from {@link
+ * TenantDirectory}. See {@link ProcessStarterLookup} for how a configured
+ * class name becomes the actual Spring-managed bean that runs.
  *
  * <p>Both nesting levels are {@code Map}-typed and merge cleanly across
  * imported property files the same way {@code fitconnect.receiver.tenants}
@@ -25,30 +30,32 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "antrag-routing")
 public class AntragRoutingProperties {
 
-    /** {@code tenant -> (leikaSchluessel -> processKey)}. */
-    private Map<String, Map<String, String>> processByTenant = new LinkedHashMap<>();
+    /** {@code tenant -> (leikaSchluessel -> fully-qualified ProcessStarter implementation class name)}. */
+    private Map<String, Map<String, String>> processStarterByTenant = new LinkedHashMap<>();
 
     /**
-     * Process to start when the incoming (tenant, Leistung) pair has no
-     * entry in {@link #processByTenant} - e.g. a manual-review process. Left
-     * unset, an unmapped combination is logged and no process is started
-     * (see {@code AntragRoutingListener}) rather than guessed.
+     * Fully-qualified {@link ProcessStarter} implementation class to use
+     * when the incoming (tenant, Leistung) pair has no entry in {@link
+     * #processStarterByTenant} - e.g. {@code NoopProcessStarter}, or a
+     * manual-review implementation. Left unset, an unmapped combination is
+     * logged and no process is started (see {@code AntragRoutingListener})
+     * rather than guessed.
      */
-    private String defaultProcessKey;
+    private String defaultProcessStarterClass;
 
-    public Map<String, Map<String, String>> getProcessByTenant() {
-        return processByTenant;
+    public Map<String, Map<String, String>> getProcessStarterByTenant() {
+        return processStarterByTenant;
     }
 
-    public void setProcessByTenant(Map<String, Map<String, String>> processByTenant) {
-        this.processByTenant = processByTenant;
+    public void setProcessStarterByTenant(Map<String, Map<String, String>> processStarterByTenant) {
+        this.processStarterByTenant = processStarterByTenant;
     }
 
-    public String getDefaultProcessKey() {
-        return defaultProcessKey;
+    public String getDefaultProcessStarterClass() {
+        return defaultProcessStarterClass;
     }
 
-    public void setDefaultProcessKey(String defaultProcessKey) {
-        this.defaultProcessKey = defaultProcessKey;
+    public void setDefaultProcessStarterClass(String defaultProcessStarterClass) {
+        this.defaultProcessStarterClass = defaultProcessStarterClass;
     }
 }
