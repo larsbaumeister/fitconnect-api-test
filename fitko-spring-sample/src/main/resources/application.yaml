@@ -48,19 +48,23 @@ fitconnect:
     client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
 
-    # Every Zustellpunkt this app polls. One background poller handles them
-    # all. Each destination carries its OWN signing/decryption keys (it is
+    # Every tenant this app receives for, each with one or more Zustellpunkte
+    # (destinations) it owns; one background poller handles all of them.
+    # Each destination carries its OWN signing/decryption keys (it is
     # registered with its own key pair regardless of which subscriber
     # client polls it). Keys are any Spring Resource location - file:,
     # classpath:, https:, ...
     #
     # Generate a TEST key pair with the Self-Service-Portal, see
     #   https://docs.fitko.de/fit-connect/docs/receiving/certificate
-    destinations:
-      - id: ${FITCONNECT_DESTINATION_ID}
-        signing-key: ${FITCONNECT_SIGNING_KEY:file:./keys/signing_key.json}
-        decryption-keys:
-          - ${FITCONNECT_DECRYPTION_KEY:file:./keys/decryption_key.json}
+    tenants:
+      gewerbeamt: # this sample only has one tenant with one destination
+        destinations:
+          gewerbeanmeldung:
+            id: ${FITCONNECT_DESTINATION_ID}
+            signing-key: ${FITCONNECT_SIGNING_KEY:file:./keys/signing_key.json}
+            decryption-keys:
+              - ${FITCONNECT_DECRYPTION_KEY:file:./keys/decryption_key.json}
 
     # What happens to a downloaded submission that no listener accepted or
     # rejected: LEAVE (default, safest - retried next poll), ACCEPT, REJECT.

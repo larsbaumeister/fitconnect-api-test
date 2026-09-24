@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
  * one poll cycle deterministically instead of racing a background thread.
  *
  * <p>The two configured destinations use genuinely different signing/
- * decryption keys ({@code fitconnect.receiver.destinations[*].signing-key}/
+ * decryption keys ({@code fitconnect.receiver.tenants[*].destinations[*].signing-key}/
  * {@code decryption-keys}), and {@code TestConfig} gives each its own {@link
  * SubscriberClient} mock via {@link SubscriberClientFactory} - exercising
  * exactly the wiring {@link FitConnectReceiverAutoConfiguration} does in
@@ -78,16 +78,16 @@ class ReceivingIntegrationTest {
 
     @DynamicPropertySource
     static void destinations(DynamicPropertyRegistry registry) {
-        registry.add("fitconnect.receiver.destinations[0].id", DESTINATION_ID::toString);
-        registry.add("fitconnect.receiver.destinations[0].signing-key",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.id", DESTINATION_ID::toString);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.signing-key",
                 () -> "file:" + TestJwkKeys.writeSigningKey(TEMP_DIR, "a-signing.json"));
-        registry.add("fitconnect.receiver.destinations[0].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]",
                 () -> "file:" + TestJwkKeys.writeDecryptionKey(TEMP_DIR, "a-decryption.json"));
 
-        registry.add("fitconnect.receiver.destinations[1].id", OTHER_DESTINATION_ID::toString);
-        registry.add("fitconnect.receiver.destinations[1].signing-key",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.id", OTHER_DESTINATION_ID::toString);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.signing-key",
                 () -> "file:" + TestJwkKeys.writeSigningKey(TEMP_DIR, "b-signing.json"));
-        registry.add("fitconnect.receiver.destinations[1].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.decryption-keys[0]",
                 () -> "file:" + TestJwkKeys.writeDecryptionKey(TEMP_DIR, "b-decryption.json"));
     }
 
@@ -109,8 +109,8 @@ class ReceivingIntegrationTest {
         }
 
         // FitConnectReceiverAutoConfiguration calls this once per configured
-        // destination, in list order: destinations[0] gets SUBSCRIBER_CLIENT,
-        // destinations[1] gets OTHER_SUBSCRIBER_CLIENT.
+        // destination, in list order: destinations.d0 gets SUBSCRIBER_CLIENT,
+        // destinations.d1 gets OTHER_SUBSCRIBER_CLIENT.
         @Bean
         SubscriberClientFactory subscriberClientFactory() {
             Deque<SubscriberClient> clientsInConfiguredOrder =
@@ -156,7 +156,7 @@ class ReceivingIntegrationTest {
         when(SUBSCRIBER_CLIENT.getAvailableSubmissionsForDestination(eq(DESTINATION_ID), anyInt(), anyInt()))
                 .thenReturn(List.of(pickup));
         // Configured as a second destination, but has nothing waiting - the
-        // fitconnect.receiver.destinations list is polled regardless.
+        // fitconnect.receiver.tenants list is polled regardless.
         when(OTHER_SUBSCRIBER_CLIENT.getAvailableSubmissionsForDestination(eq(OTHER_DESTINATION_ID), anyInt(), anyInt()))
                 .thenReturn(List.of());
 
@@ -216,8 +216,8 @@ class ReceivingIntegrationTest {
     void eachDestinationIsPolledThroughItsOwnSubscriberClient() {
         // The two destinations were given different keys - if the wrong
         // client were used for a destination in production, decryption
-        // would fail. Here it shows up simply as: destinations[1]'s pickup
-        // call must never reach destinations[0]'s mock, and vice versa.
+        // would fail. Here it shows up simply as: destinations.d1's pickup
+        // call must never reach destinations.d0's mock, and vice versa.
         pollingService.poll();
 
         verify(SUBSCRIBER_CLIENT, never()).getAvailableSubmissionsForDestination(eq(OTHER_DESTINATION_ID), anyInt(), anyInt());

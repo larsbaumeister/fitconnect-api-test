@@ -61,16 +61,16 @@ class ReceivingDestinationsAutowiringTest {
 
     @DynamicPropertySource
     static void destinations(DynamicPropertyRegistry registry) {
-        registry.add("fitconnect.receiver.destinations[0].id", DESTINATION_ID::toString);
-        registry.add("fitconnect.receiver.destinations[0].signing-key",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.id", DESTINATION_ID::toString);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.signing-key",
                 () -> "file:" + TestJwkKeys.writeSigningKey(TEMP_DIR, "a-signing.json"));
-        registry.add("fitconnect.receiver.destinations[0].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]",
                 () -> "file:" + TestJwkKeys.writeDecryptionKey(TEMP_DIR, "a-decryption.json"));
 
-        registry.add("fitconnect.receiver.destinations[1].id", OTHER_DESTINATION_ID::toString);
-        registry.add("fitconnect.receiver.destinations[1].signing-key",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.id", OTHER_DESTINATION_ID::toString);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.signing-key",
                 () -> "file:" + TestJwkKeys.writeSigningKey(TEMP_DIR, "b-signing.json"));
-        registry.add("fitconnect.receiver.destinations[1].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d1.decryption-keys[0]",
                 () -> "file:" + TestJwkKeys.writeDecryptionKey(TEMP_DIR, "b-decryption.json"));
     }
 

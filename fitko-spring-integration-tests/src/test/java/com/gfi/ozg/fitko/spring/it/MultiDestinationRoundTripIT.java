@@ -49,13 +49,14 @@ class MultiDestinationRoundTripIT extends AbstractRoundTripIT {
     @DynamicPropertySource
     static void extraDestinations(DynamicPropertyRegistry registry) {
         ITProperties.registerSecondDestination(registry);
-        // destinations[2]: the real destination-1 id but with throwaway keys.
-        // The client builds fine (the destination exists) and lists submissions,
-        // but every requestSubmission() fails to decrypt - the failure-isolation
-        // case, without needing an id that might fail client construction.
-        registry.add("fitconnect.receiver.destinations[2].id", () -> ITCredentials.destinationId().toString());
-        registry.add("fitconnect.receiver.destinations[2].signing-key", ThrowawayJwks::signingKeyResource);
-        registry.add("fitconnect.receiver.destinations[2].decryption-keys[0]", ThrowawayJwks::decryptionKeyResource);
+        // d2: the real destination-1 id but with throwaway keys, as its own
+        // separate configured entry. The client builds fine (the destination
+        // exists) and lists submissions, but every requestSubmission() fails
+        // to decrypt - the failure-isolation case, without needing an id that
+        // might fail client construction.
+        registry.add("fitconnect.receiver.tenants.it.destinations.d2.id", () -> ITCredentials.destinationId().toString());
+        registry.add("fitconnect.receiver.tenants.it.destinations.d2.signing-key", ThrowawayJwks::signingKeyResource);
+        registry.add("fitconnect.receiver.tenants.it.destinations.d2.decryption-keys[0]", ThrowawayJwks::decryptionKeyResource);
     }
 
     @BeforeEach
@@ -87,7 +88,7 @@ class MultiDestinationRoundTripIT extends AbstractRoundTripIT {
 
     @Test
     void aBrokenDestinationInTheListDoesNotStopTheHealthyOnes() {
-        // destinations[2] shares destination-1's id but has the wrong keys, so
+        // d2 shares destination-1's id but has the wrong keys, so
         // every requestSubmission() on it fails; the real destination must
         // still complete a round trip in the same cycles.
         String marker = Payloads.newMarker(getClass());

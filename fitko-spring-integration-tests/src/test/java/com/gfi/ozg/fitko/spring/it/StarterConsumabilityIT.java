@@ -63,9 +63,9 @@ class StarterConsumabilityIT {
 
     @DynamicPropertySource
     static void throwawayDestination(DynamicPropertyRegistry registry) {
-        registry.add("fitconnect.receiver.destinations[0].id", () -> UUID.randomUUID().toString());
-        registry.add("fitconnect.receiver.destinations[0].signing-key", ThrowawayJwks::signingKeyResource);
-        registry.add("fitconnect.receiver.destinations[0].decryption-keys[0]", ThrowawayJwks::decryptionKeyResource);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.id", () -> UUID.randomUUID().toString());
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.signing-key", ThrowawayJwks::signingKeyResource);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]", ThrowawayJwks::decryptionKeyResource);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

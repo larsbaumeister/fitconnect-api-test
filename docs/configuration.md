@@ -34,11 +34,14 @@ fitconnect:
   receiver:
     client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
-    destinations:
-      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/signing_key.json
-        decryption-keys:
-          - file:/etc/fitconnect/decryption_key.json
+    tenants:
+      my-tenant:
+        destinations:
+          my-destination:
+            id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+            signing-key: file:/etc/fitconnect/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/decryption_key.json
 ```
 
 An application that does both just combines the two `sender`/`receiver`
@@ -69,36 +72,102 @@ missing, before any network call.
 | Property | Type | Default | Required when | Notes |
 |---|---|---|---|---|
 | `receiver.enabled` | boolean | `true` | — | `false` if this application never receives. |
-| `receiver.client-id` | string | — | `receiver.enabled=true`, unless every destination sets its own | Default subscriber client id, issued by the Self-Service-Portal. Used by any destination below that doesn't override it. |
+| `receiver.client-id` | string | — | `receiver.enabled=true`, unless every tenant/destination sets its own | Application-wide default subscriber client id, issued by the Self-Service-Portal. The last fallback for any destination that doesn't override it and whose tenant doesn't either. |
 | `receiver.client-secret` | string | — | same as `client-id` | |
-| `receiver.destinations` | `List<Destination>` | `[]` | at least one, when `receiver.enabled=true` | Every Zustellpunkt this application polls - see below. One background poller handles the whole list. |
+| `receiver.tenants` | `Map<String, Tenant>` | `{}` | at least one, with at least one destination, when `receiver.enabled=true` | Every tenant this application receives for, keyed by a name you choose - see below. One background poller handles every destination of every tenant. |
 | `receiver.default-outcome` | `LEAVE` \| `ACCEPT` \| `REJECT` | `LEAVE` | — | What happens to a downloaded submission no `@EventListener`/`@SubmissionEventListener` explicitly resolved. `LEAVE` is the safe default: nothing is deleted server-side, so it's retried next poll. |
 | `receiver.allow-insecure-public-key` | boolean | `false` | — | Accepts a self-signed destination certificate. Never enable in PROD; useful only against a local/self-hosted TEST environment. |
 | `receiver.skip-submission-data-validation` | boolean | `false` | — | Skips the SDK's local JSON-Schema validation of received submission data. |
 | `receiver.disable-auto-reject` | boolean | `false` | — | By default a submission that fails validation is auto-rejected with a `DataSchemaViolation`. Set `true` to leave it on the delivery service instead. |
 
-### `fitconnect.receiver.destinations[]`
+### `fitconnect.receiver.tenants{}`
+
+A tenant (a municipality, authority, or any other grouping that makes sense
+for you) is a named group of one or more Zustellpunkte (destinations) it
+owns. It exists purely for configuration ergonomics - naming (so a
+destination shows up in logs/errors as `tenants[<tenant>].destinations[<name>]`
+instead of a bare list index) and defaulting (a tenant can set its own
+`client-id`/`client-secret`, used by every destination it owns that doesn't
+override it). It has no runtime meaning: every destination of every tenant is
+still polled, and delivers events, exactly the same way.
+
+| Property | Type | Default | Required | Notes |
+|---|---|---|---|---|
+| `tenants.<name>.client-id` | string | falls back to `receiver.client-id` | only if this tenant's destinations were registered under a different Self-Service-Portal client | |
+| `tenants.<name>.client-secret` | string | falls back to `receiver.client-secret` | same as `client-id` | |
+| `tenants.<name>.destinations` | `Map<String, Destination>` | `{}` | at least one | Every Zustellpunkt this tenant owns, keyed by a name you choose (e.g. the Leistung it serves) - see below. A tenant can have just one destination or many. |
 
 A FIT-Connect Zustellpunkt is registered with its own signing/encryption key
 pair regardless of which subscriber client polls it, so each destination
 carries its own keys - required, even if two destinations happen to reuse
 the same key material. Internally this means one SDK `SubscriberClient` per
-destination, not one shared client for the whole application.
+destination, not one shared client for the whole application or even for one
+tenant.
 
 | Property | Type | Default | Required | Notes |
 |---|---|---|---|---|
-| `destinations[].id` | UUID | — | always | The Zustellpunkt id to poll. |
-| `destinations[].signing-key` | `Resource` | — | always | This destination's private signing key JWK. Any Spring `Resource` location (`file:`, `classpath:`, `https:`, ...) - read as bytes and parsed directly, doesn't need to be a real file on disk. |
-| `destinations[].decryption-keys` | `List<Resource>` | `[]` | at least one | This destination's private decryption key JWKs. More than one supports key rollover; the incoming JWE's `kid` picks the right one automatically. |
-| `destinations[].client-id` | string | falls back to `receiver.client-id` | only if this destination uses a different Self-Service-Portal registration | |
-| `destinations[].client-secret` | string | falls back to `receiver.client-secret` | same as `client-id` | |
-| `destinations[].callback-secret` | string | — | only if `receiver.callback.enabled=true` and this destination should receive callbacks | See "`fitconnect.receiver.callback.*`" below. |
+| `tenants.<name>.destinations.<name>.id` | UUID | — | always | The Zustellpunkt id to poll. |
+| `tenants.<name>.destinations.<name>.signing-key` | `Resource` | — | always | This destination's private signing key JWK. Any Spring `Resource` location (`file:`, `classpath:`, `https:`, ...) - read as bytes and parsed directly, doesn't need to be a real file on disk. |
+| `tenants.<name>.destinations.<name>.decryption-keys` | `List<Resource>` | `[]` | at least one | This destination's private decryption key JWKs. More than one supports key rollover; the incoming JWE's `kid` picks the right one automatically. |
+| `tenants.<name>.destinations.<name>.client-id` | string | falls back to the owning tenant's `client-id`, then `receiver.client-id` | only if this destination uses a different Self-Service-Portal registration than the rest of its tenant | |
+| `tenants.<name>.destinations.<name>.client-secret` | string | falls back the same way as `client-id` | same as `client-id` | |
+| `tenants.<name>.destinations.<name>.callback-secret` | string | — | only if `receiver.callback.enabled=true` and this destination should receive callbacks | See "`fitconnect.receiver.callback.*`" below. |
 
-Most setups only need one Self-Service-Portal registration polling several
-destinations, so `client-id`/`client-secret` are usually left unset per
-destination and just set once on `receiver.*`. Set them per destination only
-when a destination was registered under a genuinely different client (e.g. a
+Most setups only need one Self-Service-Portal registration polling every
+tenant/destination, so `client-id`/`client-secret` are usually left unset
+everywhere below `receiver.*`. Set them on a tenant when all of that
+tenant's destinations were registered under one client different from the
+rest of the application; set them on an individual destination only when
+that one destination alone was registered under yet another client (e.g. a
 separate legal entity's own registration).
+
+#### Splitting configuration across files
+
+Both `tenants` and `destinations` are `Map`s, not `List`s, specifically so
+this section can grow to "many many destinations for different tenants"
+without becoming one unmanageable block: **a `Map`-typed property merges
+per-key across property sources, a `List`-typed one does not.** Concretely -
+verified against Spring Boot's own `Binder` - if `fitconnect.receiver.tenants`
+were still a list and you defined some tenants in `application.yml` and more
+in a second, imported file, only *one* of those sources' entries would apply;
+the other file's tenants would be silently dropped, with no error. A `Map`
+merges both files' keys instead.
+
+This makes it safe to keep `application.yml` itself small and grow the
+tenant/destination configuration in its own file(s), imported via Spring
+Boot's own [`spring.config.import`](https://docs.spring.io/spring-boot/reference/features/external-config.html#features.external-config.files.importing):
+
+```yaml
+# application.yml
+spring:
+  config:
+    import: "file:/etc/fitconnect/tenants.yaml"
+fitconnect:
+  environment: PROD
+  receiver:
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+```
+
+```yaml
+# /etc/fitconnect/tenants.yaml - can grow arbitrarily large, and can itself
+# import further files (e.g. one per tenant) the same way
+fitconnect:
+  receiver:
+    tenants:
+      stadt-koeln:
+        destinations:
+          gewerbeanzeige:
+            id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+            signing-key: file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/decryption_key.json
+```
+
+Every destination and tenant key must still be unique across the whole
+configuration (Spring simply overwrites a key that's defined twice, keeping
+whichever source has higher priority) - keep tenant/destination names
+distinct across files, e.g. by prefixing them or keeping one file per tenant.
 
 ### `fitconnect.receiver.polling.*`
 
@@ -221,8 +290,9 @@ destination as soon as a new submission is available. Off by default.
 | `callback.path` | string | `/fitconnect/callback` | Base path the endpoint is mapped to; the destination id is always appended, e.g. the default value maps `POST /fitconnect/callback/<destinationId>`. |
 
 Turning this on only *exposes* the endpoint - each destination still needs
-its own `destinations[].callback-secret` (see above) before it actually
-accepts callbacks (a request for a destination without one gets `404`). A
+its own `tenants.<name>.destinations.<name>.callback-secret` (see above)
+before it actually accepts callbacks (a request for a destination without
+one gets `404`). A
 destination is still polled normally regardless of
 whether it also has a callback secret set - the two delivery mechanisms are
 independent, and a missed or failed callback is simply picked up on the next

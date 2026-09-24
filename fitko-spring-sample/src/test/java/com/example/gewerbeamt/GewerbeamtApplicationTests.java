@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "fitconnect.sender.client-id=test-client-id",
         "fitconnect.sender.client-secret=test-client-secret",
         "fitconnect.receiver.enabled=false",
-        "fitconnect.receiver.destinations[0].id=9f6bb611-df46-494a-9a98-a253f1362dc7"
+        "fitconnect.receiver.tenants.gewerbeamt.destinations.gewerbeanmeldung.id=9f6bb611-df46-494a-9a98-a253f1362dc7"
 })
 class GewerbeamtApplicationTests {
 

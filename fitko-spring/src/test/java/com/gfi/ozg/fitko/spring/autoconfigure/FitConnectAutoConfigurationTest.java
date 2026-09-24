@@ -55,9 +55,9 @@ class FitConnectAutoConfigurationTest {
                 "fitconnect.sender.enabled=false",
                 "fitconnect.receiver.client-id=id",
                 "fitconnect.receiver.client-secret=secret",
-                "fitconnect.receiver.destinations[0].id=9f6bb611-df46-494a-9a98-a253f1362dc7",
-                "fitconnect.receiver.destinations[0].signing-key=file:" + signingKey,
-                "fitconnect.receiver.destinations[0].decryption-keys[0]=file:" + decryptionKey,
+                "fitconnect.receiver.tenants.t1.destinations.d0.id=9f6bb611-df46-494a-9a98-a253f1362dc7",
+                "fitconnect.receiver.tenants.t1.destinations.d0.signing-key=file:" + signingKey,
+                "fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]=file:" + decryptionKey,
                 "fitconnect.receiver.polling.enabled=false"
         };
     }
@@ -93,12 +93,12 @@ class FitConnectAutoConfigurationTest {
                         "fitconnect.sender.enabled=false",
                         "fitconnect.receiver.client-id=id",
                         "fitconnect.receiver.client-secret=secret",
-                        "fitconnect.receiver.destinations[0].id=9f6bb611-df46-494a-9a98-a253f1362dc7",
-                        "fitconnect.receiver.destinations[0].signing-key=file:" + signingKeyA,
-                        "fitconnect.receiver.destinations[0].decryption-keys[0]=file:" + decryptionKeyA,
-                        "fitconnect.receiver.destinations[1].id=2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234",
-                        "fitconnect.receiver.destinations[1].signing-key=file:" + signingKeyB,
-                        "fitconnect.receiver.destinations[1].decryption-keys[0]=file:" + decryptionKeyB,
+                        "fitconnect.receiver.tenants.t1.destinations.d0.id=9f6bb611-df46-494a-9a98-a253f1362dc7",
+                        "fitconnect.receiver.tenants.t1.destinations.d0.signing-key=file:" + signingKeyA,
+                        "fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]=file:" + decryptionKeyA,
+                        "fitconnect.receiver.tenants.t1.destinations.d1.id=2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234",
+                        "fitconnect.receiver.tenants.t1.destinations.d1.signing-key=file:" + signingKeyB,
+                        "fitconnect.receiver.tenants.t1.destinations.d1.decryption-keys[0]=file:" + decryptionKeyB,
                         "fitconnect.receiver.polling.enabled=false")
                 .run(context -> assertThat(context)
                         .hasSingleBean(SubscriberClientFactory.class)
@@ -150,7 +150,7 @@ class FitConnectAutoConfigurationTest {
                         "fitconnect.receiver.polling.enabled=false")
                 .run(context -> assertThat(context).hasFailed()
                         .getFailure().rootCause().isInstanceOf(FitConnectConfigurationException.class)
-                        .hasMessageContaining("fitconnect.receiver.destinations"));
+                        .hasMessageContaining("fitconnect.receiver.tenants"));
     }
 
     @Test

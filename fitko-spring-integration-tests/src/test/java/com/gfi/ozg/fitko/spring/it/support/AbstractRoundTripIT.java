@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>skips the whole class unless the FIT-Connect credentials are set
  *       ({@link ITCredentials#requireBaseCredentials()});</li>
- *   <li>injects {@code fitconnect.*} credentials + {@code destinations[0]}
+ *   <li>injects {@code fitconnect.*} credentials + {@code tenants.it.destinations.d0}
  *       from the environment ({@link ITProperties#registerBase});</li>
  *   <li>tears the context (and its background poller) down after the class
  *       ({@code @DirtiesContext}) so pollers from finished classes don't keep

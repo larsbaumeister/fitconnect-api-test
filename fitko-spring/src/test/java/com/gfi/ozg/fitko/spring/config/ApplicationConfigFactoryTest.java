@@ -106,19 +106,35 @@ class ApplicationConfigFactoryTest {
         destination.setClientId("destination-specific-client-id");
         destination.setClientSecret("destination-specific-client-secret");
 
-        SubscriberConfig config = ApplicationConfigFactory.createSubscriberConfig(receiver, destination);
+        SubscriberConfig config = createSubscriberConfig(receiver, emptyTenant(), destination);
 
         assertThat(config.getClientId()).isEqualTo("destination-specific-client-id");
         assertThat(config.getClientSecret()).isEqualTo("destination-specific-client-secret");
     }
 
     @Test
-    void createSubscriberConfigFallsBackToTheReceiversCredentialsWhenTheDestinationDoesNotSetItsOwn() {
+    void createSubscriberConfigFallsBackToTheTenantsCredentialsWhenTheDestinationDoesNotSetItsOwn() {
         FitConnectProperties.Receiver receiver = new FitConnectProperties.Receiver();
         receiver.setClientId("shared-client-id");
         receiver.setClientSecret("shared-client-secret");
 
-        SubscriberConfig config = ApplicationConfigFactory.createSubscriberConfig(receiver, destination());
+        FitConnectProperties.Receiver.Tenant tenant = emptyTenant();
+        tenant.setClientId("tenant-client-id");
+        tenant.setClientSecret("tenant-client-secret");
+
+        SubscriberConfig config = createSubscriberConfig(receiver, tenant, destination());
+
+        assertThat(config.getClientId()).isEqualTo("tenant-client-id");
+        assertThat(config.getClientSecret()).isEqualTo("tenant-client-secret");
+    }
+
+    @Test
+    void createSubscriberConfigFallsBackToTheReceiversCredentialsWhenNeitherTheDestinationNorTheTenantSetTheirOwn() {
+        FitConnectProperties.Receiver receiver = new FitConnectProperties.Receiver();
+        receiver.setClientId("shared-client-id");
+        receiver.setClientSecret("shared-client-secret");
+
+        SubscriberConfig config = createSubscriberConfig(receiver, emptyTenant(), destination());
 
         assertThat(config.getClientId()).isEqualTo("shared-client-id");
         assertThat(config.getClientSecret()).isEqualTo("shared-client-secret");
@@ -142,8 +158,8 @@ class ApplicationConfigFactoryTest {
         destinationB.setDecryptionKeys(java.util.List.of(
                 new FileSystemResource(TestJwkKeys.writeDecryptionKey(tempDir, "b-decryption.json"))));
 
-        SubscriberConfig configA = ApplicationConfigFactory.createSubscriberConfig(receiver, destinationA);
-        SubscriberConfig configB = ApplicationConfigFactory.createSubscriberConfig(receiver, destinationB);
+        SubscriberConfig configA = createSubscriberConfig(receiver, emptyTenant(), destinationA);
+        SubscriberConfig configB = createSubscriberConfig(receiver, emptyTenant(), destinationB);
 
         assertThat(configA.getSubscriberKeys().getPrivateSigningKey())
                 .isNotEqualTo(configB.getSubscriberKeys().getPrivateSigningKey());
@@ -159,7 +175,7 @@ class ApplicationConfigFactoryTest {
         destination.setId(UUID.randomUUID());
         destination.setDecryptionKeys(java.util.List.of(new FileSystemResource(TestJwkKeys.writeDecryptionKey(tempDir))));
 
-        assertThatThrownBy(() -> ApplicationConfigFactory.createSubscriberConfig(receiver, destination))
+        assertThatThrownBy(() -> createSubscriberConfig(receiver, emptyTenant(), destination))
                 .isInstanceOf(FitConnectConfigurationException.class)
                 .hasMessageContaining("signing-key");
     }
@@ -182,7 +198,7 @@ class ApplicationConfigFactoryTest {
         destination.setDecryptionKeys(
                 java.util.List.of(new ByteArrayResource(decryptionKeyJson.getBytes(StandardCharsets.UTF_8))));
 
-        SubscriberConfig config = ApplicationConfigFactory.createSubscriberConfig(receiver, destination);
+        SubscriberConfig config = createSubscriberConfig(receiver, emptyTenant(), destination);
 
         assertThat(config.getSubscriberKeys().getPrivateSigningKey().toJSONString()).isEqualTo(signingKeyJson);
     }
@@ -198,7 +214,7 @@ class ApplicationConfigFactoryTest {
         destination.setSigningKey(new ByteArrayResource("not a jwk".getBytes(StandardCharsets.UTF_8)));
         destination.setDecryptionKeys(java.util.List.of(new FileSystemResource(TestJwkKeys.writeDecryptionKey(tempDir))));
 
-        assertThatThrownBy(() -> ApplicationConfigFactory.createSubscriberConfig(receiver, destination))
+        assertThatThrownBy(() -> createSubscriberConfig(receiver, emptyTenant(), destination))
                 .isInstanceOf(FitConnectConfigurationException.class)
                 .hasMessageContaining("signing-key")
                 .hasMessageContaining("not a valid JWK");
@@ -212,10 +228,21 @@ class ApplicationConfigFactoryTest {
         return destination;
     }
 
+    private static FitConnectProperties.Receiver.Tenant emptyTenant() {
+        return new FitConnectProperties.Receiver.Tenant();
+    }
+
+    /** Delegates with a fixed tenant/destination key - most tests here don't care about their names, only the fallback chain. */
+    private static SubscriberConfig createSubscriberConfig(FitConnectProperties.Receiver receiver,
+                                                             FitConnectProperties.Receiver.Tenant tenant,
+                                                             FitConnectProperties.Receiver.Destination destination) {
+        return ApplicationConfigFactory.createSubscriberConfig(receiver, "t1", tenant, "d1", destination);
+    }
+
     private SubscriberConfig subscriberConfig(String clientId) {
         FitConnectProperties.Receiver receiver = new FitConnectProperties.Receiver();
         receiver.setClientId(clientId);
         receiver.setClientSecret("secret");
-        return ApplicationConfigFactory.createSubscriberConfig(receiver, destination());
+        return createSubscriberConfig(receiver, emptyTenant(), destination());
     }
 }

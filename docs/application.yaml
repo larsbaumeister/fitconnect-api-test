@@ -30,42 +30,77 @@ fitconnect:
   receiver:
     enabled: true # set false if this application never receives
 
-    # Default subscriber credentials, used by any destination below that
-    # doesn't set its own client-id/client-secret. Most setups only need
-    # this - one Self-Service-Portal registration, polling several
-    # destinations that all belong to it.
+    # Application-wide default subscriber credentials - the last fallback
+    # for any destination below that doesn't set its own client-id/
+    # client-secret AND whose tenant doesn't set one either. Most setups
+    # only need this: one Self-Service-Portal registration, polling several
+    # tenants/destinations that all belong to it.
     client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
 
-    # Every Zustellpunkt this application polls. One background poller
-    # handles the whole list. A FIT-Connect destination is registered with
-    # its own signing/encryption key pair regardless of which subscriber
-    # client polls it, so each entry carries its own keys - required, even
-    # if two destinations happen to reuse the same key material. At least
-    # one entry is required whenever receiver.enabled is true.
-    destinations:
-      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/destination-a/signing_key.json
-        decryption-keys:
-          - file:/etc/fitconnect/destination-a/decryption_key.json
-          # add a second entry here while rotating keys; the incoming JWE's
-          # `kid` picks the right one automatically, no code change needed
-        # Only needed if callback.enabled below is true, and only for a
-        # destination that should actually receive callbacks - the secret
-        # given to FIT-Connect when registering this destination's Callback.
-        callback-secret: ${FITCONNECT_DESTINATION_A_CALLBACK_SECRET}
+    # Every tenant this application receives for, keyed by a short name you
+    # choose (a municipality, authority, whatever grouping makes sense for
+    # you) - each with one or more Zustellpunkte (destinations) it owns,
+    # also keyed by a short name (e.g. the Leistung it serves). One
+    # background poller handles every destination of every tenant.
+    #
+    # A FIT-Connect destination is registered with its own signing/
+    # encryption key pair regardless of which subscriber client polls it,
+    # so each destination carries its own keys - required, even if two
+    # destinations happen to reuse the same key material. At least one
+    # tenant with at least one destination is required whenever
+    # receiver.enabled is true.
+    #
+    # Both levels are maps (not lists) specifically so this block can grow
+    # large without becoming unmanageable: a Map merges per-key across
+    # property sources, so - unlike a List, which would silently drop
+    # everything but one source's entries - you can split tenants (or even
+    # single destinations) into their own YAML files as the set grows, e.g.
+    # via `spring.config.import: file:/etc/fitconnect/tenants/`. See
+    # configuration.md for the details on that.
+    tenants:
+      stadt-koeln: # a tenant with two destinations sharing the receiver-wide default client above
+        destinations:
+          gewerbeanzeige:
+            id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+            signing-key: file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/decryption_key.json
+              # add a second entry here while rotating keys; the incoming JWE's
+              # `kid` picks the right one automatically, no code change needed
+            # Only needed if callback.enabled below is true, and only for a
+            # destination that should actually receive callbacks - the secret
+            # given to FIT-Connect when registering this destination's Callback.
+            callback-secret: ${FITCONNECT_STADT_KOELN_GEWERBEANZEIGE_CALLBACK_SECRET}
 
-      - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
-        signing-key: file:/etc/fitconnect/destination-b/signing_key.json
-        decryption-keys:
-          - file:/etc/fitconnect/destination-b/decryption_key.json
-        # Only needed if this destination was registered under a different
-        # Self-Service-Portal client than the shared receiver.client-id/
-        # client-secret above (e.g. a separate legal entity's registration).
-        client-id: ${FITCONNECT_DESTINATION_B_CLIENT_ID}
-        client-secret: ${FITCONNECT_DESTINATION_B_CLIENT_SECRET}
-        # This destination has no callback-secret, so it's only ever reached
-        # through polling, even with callback.enabled: true below.
+          baugenehmigung:
+            id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
+            signing-key: file:/etc/fitconnect/stadt-koeln/baugenehmigung/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/stadt-koeln/baugenehmigung/decryption_key.json
+            # This destination has no callback-secret, so it's only ever reached
+            # through polling, even with callback.enabled: true below.
+
+      land-nrw: # a tenant registered under its own Self-Service-Portal client
+        client-id: ${FITCONNECT_LAND_NRW_CLIENT_ID}
+        client-secret: ${FITCONNECT_LAND_NRW_CLIENT_SECRET}
+        destinations:
+          foerderantrag:
+            id: 5c3e9a10-1f2b-4d3e-9a2b-1234567890ab
+            signing-key: file:/etc/fitconnect/land-nrw/foerderantrag/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/land-nrw/foerderantrag/decryption_key.json
+            # No client-id/client-secret here: falls back to land-nrw's above.
+
+          sonderfoerderung:
+            id: 7d4f2e11-8a3c-4b5d-9e6f-0123456789cd
+            signing-key: file:/etc/fitconnect/land-nrw/sonderfoerderung/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/land-nrw/sonderfoerderung/decryption_key.json
+            # This one destination was registered under yet another client,
+            # different from the rest of land-nrw's own registration above.
+            client-id: ${FITCONNECT_SONDERFOERDERUNG_CLIENT_ID}
+            client-secret: ${FITCONNECT_SONDERFOERDERUNG_CLIENT_SECRET}
 
     # What happens to a downloaded submission no @EventListener/
     # @SubmissionEventListener explicitly accepted or rejected: LEAVE (default,

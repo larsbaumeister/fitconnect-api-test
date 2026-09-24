@@ -43,16 +43,24 @@ fitconnect:
   receiver:
     client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
     client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
-    destinations: # every destination this app receives on; one poller handles them all
-      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/destination-a/signing_key.json
-        decryption-keys:
-          - file:/etc/fitconnect/destination-a/decryption_key.json
+    tenants: # every tenant this app receives for; one poller handles every destination of every tenant
+      stadt-koeln:
+        destinations:
+          gewerbeanzeige:
+            id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+            signing-key: file:/etc/fitconnect/destination-a/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/destination-a/decryption_key.json
 ```
 
 Each destination is its own Zustellpunkt with its own key pair, so each
 carries its own keys here too — `client-id`/`client-secret` can still be
-shared (see [`configuration.md`](configuration.md)).
+shared, at the destination, tenant, or application level (see
+[`configuration.md`](configuration.md)). A tenant can group several
+destinations; `tenants`/`destinations` are both maps (not lists)
+specifically so a large configuration can be split across several YAML
+files as it grows — see "Splitting configuration across files" in
+[`configuration.md`](configuration.md).
 
 Only send, or only receive? Set `fitconnect.sender.enabled=false` /
 `fitconnect.receiver.enabled=false`. Every property is documented on
@@ -166,12 +174,15 @@ fitconnect:
   receiver:
     callback:
       enabled: true
-    destinations:
-      - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
-        signing-key: file:/etc/fitconnect/signing_key.json
-        decryption-keys:
-          - file:/etc/fitconnect/decryption_key.json
-        callback-secret: ${FITCONNECT_CALLBACK_SECRET} # required for this destination to accept callbacks
+    tenants:
+      stadt-koeln:
+        destinations:
+          gewerbeanzeige:
+            id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+            signing-key: file:/etc/fitconnect/signing_key.json
+            decryption-keys:
+              - file:/etc/fitconnect/decryption_key.json
+            callback-secret: ${FITCONNECT_CALLBACK_SECRET} # required for this destination to accept callbacks
 ```
 
 Then register `https://your-app-host/fitconnect/callback/<destinationId>` as
@@ -218,7 +229,7 @@ network or key material).
   too big to hold in memory — see
   [Übertragung großer Attachments](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#übertragung-großer-attachments).
 - **Destination/routing lookup and provisioning** (`RouterClient`,
-  `DestinationClient`) — you set `fitconnect.receiver.destinations` /
+  `DestinationClient`) — you set `fitconnect.receiver.tenants` /
   `SubmissionToSend.destinationId` directly, and register a destination's
   `Callback` with FIT-Connect yourself; see
   [Routing-Informationen](https://docs.fitko.de/fit-connect/docs/sdks/java-sdk/sender#routing-informationen)

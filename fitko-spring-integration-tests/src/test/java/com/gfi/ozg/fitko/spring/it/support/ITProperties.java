@@ -52,22 +52,22 @@ public final class ITProperties {
         registry.add("fitconnect.receiver.client-id", ITCredentials::receiverClientId);
         registry.add("fitconnect.receiver.client-secret", ITCredentials::receiverClientSecret);
 
-        registry.add("fitconnect.receiver.destinations[0].id", () -> ITCredentials.destinationId().toString());
-        registry.add("fitconnect.receiver.destinations[0].signing-key",
+        registry.add("fitconnect.receiver.tenants.it.destinations.d0.id", () -> ITCredentials.destinationId().toString());
+        registry.add("fitconnect.receiver.tenants.it.destinations.d0.signing-key",
                 () -> keyResource("it-d1-signing", ITCredentials.signingKey()));
-        registry.add("fitconnect.receiver.destinations[0].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.it.destinations.d0.decryption-keys[0]",
                 () -> keyResource("it-d1-decryption", ITCredentials.decryptionKey()));
     }
 
-    /** Adds a second configured destination ({@code destinations[1]}) from the {@code *_DESTINATION2_*} variables. */
+    /** Adds a second configured destination ({@code tenants.it.destinations.d1}) from the {@code *_DESTINATION2_*} variables. */
     public static void registerSecondDestination(DynamicPropertyRegistry registry) {
         if (!ITCredentials.allSet(ITCredentials.SECOND_DESTINATION_VARS)) {
             return;
         }
-        registry.add("fitconnect.receiver.destinations[1].id", () -> ITCredentials.secondDestinationId().toString());
-        registry.add("fitconnect.receiver.destinations[1].signing-key",
+        registry.add("fitconnect.receiver.tenants.it.destinations.d1.id", () -> ITCredentials.secondDestinationId().toString());
+        registry.add("fitconnect.receiver.tenants.it.destinations.d1.signing-key",
                 () -> keyResource("it-d2-signing", ITCredentials.secondSigningKey()));
-        registry.add("fitconnect.receiver.destinations[1].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.it.destinations.d1.decryption-keys[0]",
                 () -> keyResource("it-d2-decryption", ITCredentials.secondDecryptionKey()));
     }
 

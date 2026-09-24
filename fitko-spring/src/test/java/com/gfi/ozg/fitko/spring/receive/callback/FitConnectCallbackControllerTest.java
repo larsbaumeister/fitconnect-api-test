@@ -71,12 +71,12 @@ class FitConnectCallbackControllerTest {
 
     @DynamicPropertySource
     static void destination(DynamicPropertyRegistry registry) {
-        registry.add("fitconnect.receiver.destinations[0].id", DESTINATION_ID::toString);
-        registry.add("fitconnect.receiver.destinations[0].signing-key",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.id", DESTINATION_ID::toString);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.signing-key",
                 () -> "file:" + TestJwkKeys.writeSigningKey(TEMP_DIR));
-        registry.add("fitconnect.receiver.destinations[0].decryption-keys[0]",
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.decryption-keys[0]",
                 () -> "file:" + TestJwkKeys.writeDecryptionKey(TEMP_DIR));
-        registry.add("fitconnect.receiver.destinations[0].callback-secret", () -> CALLBACK_SECRET);
+        registry.add("fitconnect.receiver.tenants.t1.destinations.d0.callback-secret", () -> CALLBACK_SECRET);
     }
 
     private static Path createTempDir() {

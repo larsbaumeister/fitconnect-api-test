@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Bean;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Receiving ("Verwaltungssystem") side: one {@link SubscriberClientPool} per
@@ -85,34 +86,55 @@ public class FitConnectReceiverAutoConfiguration {
     public ReceivingDestinations fitConnectReceivingDestinations(ApplicationConfig applicationConfig,
                                                                    SubscriberClientFactory subscriberClientFactory,
                                                                    FitConnectProperties properties) {
-        List<FitConnectProperties.Receiver.Destination> configuredDestinations =
-                properties.getReceiver().getDestinations();
-        if (configuredDestinations.isEmpty()) {
+        Map<String, FitConnectProperties.Receiver.Tenant> tenants = properties.getReceiver().getTenants();
+        if (tenants.isEmpty()) {
             throw new FitConnectConfigurationException(
-                    "fitconnect.receiver.destinations must be set when fitconnect.receiver.enabled=true");
+                    "fitconnect.receiver.tenants must be set when fitconnect.receiver.enabled=true");
         }
 
         int concurrency = resolvePollingConcurrency(properties);
-        log.debug("Configuring {} receiving destination(s), up to {} submission(s) in parallel per destination",
-                configuredDestinations.size(), concurrency);
-        List<ReceivingDestination> destinations = new ArrayList<>(configuredDestinations.size());
-        for (FitConnectProperties.Receiver.Destination destination : configuredDestinations) {
-            if (destination.getId() == null) {
-                throw new FitConnectConfigurationException(
-                        "Every fitconnect.receiver.destinations entry needs an id");
+        List<ReceivingDestination> destinations = new ArrayList<>();
+        for (Map.Entry<String, FitConnectProperties.Receiver.Tenant> tenantEntry : tenants.entrySet()) {
+            String tenantKey = tenantEntry.getKey();
+            Map<String, FitConnectProperties.Receiver.Destination> configuredDestinations =
+                    tenantEntry.getValue().getDestinations();
+            if (configuredDestinations.isEmpty()) {
+                throw new FitConnectConfigurationException("fitconnect.receiver.tenants[" + tenantKey
+                        + "].destinations must contain at least one destination");
             }
-            log.debug("Building SubscriberClient pool for destination {} (callback {})",
-                    destination.getId(), destination.getCallbackSecret() != null ? "enabled" : "disabled");
-            SubscriberConfig subscriberConfig =
-                    ApplicationConfigFactory.createSubscriberConfig(properties.getReceiver(), destination);
-            ApplicationConfig destinationConfig =
-                    ApplicationConfigFactory.withSubscriberConfig(applicationConfig, subscriberConfig);
-            SubscriberClientPool clientPool = new SubscriberClientPool(
-                    () -> createClient(subscriberClientFactory, destinationConfig), concurrency);
-            destinations.add(new ReceivingDestination(
-                    destination.getId(), clientPool, destination.getCallbackSecret()));
+            for (Map.Entry<String, FitConnectProperties.Receiver.Destination> destinationEntry
+                    : configuredDestinations.entrySet()) {
+                destinations.add(buildDestination(applicationConfig, subscriberClientFactory, properties,
+                        tenantKey, tenantEntry.getValue(), destinationEntry.getKey(), destinationEntry.getValue(),
+                        concurrency));
+            }
         }
+        log.debug("Configured {} receiving destination(s) across {} tenant(s), "
+                + "up to {} submission(s) in parallel per destination",
+                destinations.size(), tenants.size(), concurrency);
         return new ReceivingDestinations(destinations);
+    }
+
+    private ReceivingDestination buildDestination(ApplicationConfig applicationConfig,
+                                                    SubscriberClientFactory subscriberClientFactory,
+                                                    FitConnectProperties properties,
+                                                    String tenantKey, FitConnectProperties.Receiver.Tenant tenant,
+                                                    String destinationKey, FitConnectProperties.Receiver.Destination destination,
+                                                    int concurrency) {
+        String location = "tenants[" + tenantKey + "].destinations[" + destinationKey + "]";
+        if (destination.getId() == null) {
+            throw new FitConnectConfigurationException(
+                    "fitconnect.receiver." + location + " needs an id");
+        }
+        log.debug("Building SubscriberClient pool for {} ({}) (callback {})",
+                location, destination.getId(), destination.getCallbackSecret() != null ? "enabled" : "disabled");
+        SubscriberConfig subscriberConfig = ApplicationConfigFactory.createSubscriberConfig(
+                properties.getReceiver(), tenantKey, tenant, destinationKey, destination);
+        ApplicationConfig destinationConfig =
+                ApplicationConfigFactory.withSubscriberConfig(applicationConfig, subscriberConfig);
+        SubscriberClientPool clientPool = new SubscriberClientPool(
+                () -> createClient(subscriberClientFactory, destinationConfig), concurrency);
+        return new ReceivingDestination(destination.getId(), clientPool, destination.getCallbackSecret());
     }
 
     @Bean

@@ -42,7 +42,10 @@ import java.util.Map;
  * (via {@link #createSubscriberConfig}) and one {@code ApplicationConfig}
  * (via {@link #withSubscriberConfig}) per destination, not one for the whole
  * app. {@link com.gfi.ozg.fitko.spring.autoconfigure.FitConnectReceiverAutoConfiguration}
- * does exactly that, once per {@link FitConnectProperties.Receiver.Destination}.
+ * does exactly that, once per {@link FitConnectProperties.Receiver.Destination}
+ * of every configured {@link FitConnectProperties.Receiver.Tenant} - a tenant
+ * is a pure configuration-time grouping, so this still means exactly one
+ * client per destination, same as before tenants existed.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 @Slf4j
@@ -102,43 +105,57 @@ public final class ApplicationConfigFactory {
 
     /**
      * Builds the {@link SubscriberConfig} for one {@link
-     * FitConnectProperties.Receiver.Destination}: its own signing/decryption
-     * keys, and its own client-id/client-secret if set, otherwise {@code
-     * receiver}'s.
+     * FitConnectProperties.Receiver.Destination} of one {@link
+     * FitConnectProperties.Receiver.Tenant}: its own signing/decryption
+     * keys, and its own client-id/client-secret if set, otherwise the owning
+     * tenant's, otherwise {@code receiver}'s - see {@link
+     * FitConnectProperties.Receiver.Destination}'s javadoc for the full
+     * fallback chain.
+     *
+     * @param tenantKey      the tenant's map key, for error messages/logging only
+     * @param destinationKey the destination's map key, for error messages/logging only
      */
     public static SubscriberConfig createSubscriberConfig(FitConnectProperties.Receiver receiver,
+                                                            String tenantKey,
+                                                            FitConnectProperties.Receiver.Tenant tenant,
+                                                            String destinationKey,
                                                             FitConnectProperties.Receiver.Destination destination) {
-        log.debug("Building SubscriberConfig for destination {}", destination.getId());
-        String clientId = firstNonBlank(destination.getClientId(), receiver.getClientId());
-        String clientSecret = firstNonBlank(destination.getClientSecret(), receiver.getClientSecret());
-        requireText(clientId, describe(destination, "client-id"));
-        requireText(clientSecret, describe(destination, "client-secret"));
+        log.debug("Building SubscriberConfig for tenant '{}' destination '{}'", tenantKey, destinationKey);
+        String clientId = firstNonBlank(destination.getClientId(), tenant.getClientId(), receiver.getClientId());
+        String clientSecret = firstNonBlank(destination.getClientSecret(), tenant.getClientSecret(), receiver.getClientSecret());
+        requireText(clientId, describe(tenantKey, destinationKey, "client-id"));
+        requireText(clientSecret, describe(tenantKey, destinationKey, "client-secret"));
         if (destination.getSigningKey() == null) {
-            throw missingProperty(describe(destination, "signing-key"));
+            throw missingProperty(describe(tenantKey, destinationKey, "signing-key"));
         }
         if (destination.getDecryptionKeys().isEmpty()) {
-            throw missingProperty(describe(destination, "decryption-keys"));
+            throw missingProperty(describe(tenantKey, destinationKey, "decryption-keys"));
         }
         List<JWK> decryptionKeys = new ArrayList<>(destination.getDecryptionKeys().size());
         for (Resource resource : destination.getDecryptionKeys()) {
-            decryptionKeys.add(readJwk(resource, describe(destination, "decryption-keys")));
+            decryptionKeys.add(readJwk(resource, describe(tenantKey, destinationKey, "decryption-keys")));
         }
         return SubscriberConfig.builder()
                 .clientId(clientId)
                 .clientSecret(clientSecret)
-                .privateSigningKey(readJwk(destination.getSigningKey(), describe(destination, "signing-key")))
+                .privateSigningKey(readJwk(destination.getSigningKey(), describe(tenantKey, destinationKey, "signing-key")))
                 .privateDecryptionKeys(decryptionKeys)
                 .build();
     }
 
-    private static String firstNonBlank(String preferred, String fallback) {
-        return preferred != null && !preferred.isBlank() ? preferred : fallback;
+    /** Returns the first non-blank value, in order, or {@code null} if all of them are blank/{@code null}. */
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
-    /** Names a destination's property for an error/exception message, since destinations aren't otherwise indexed. */
-    private static String describe(FitConnectProperties.Receiver.Destination destination, String property) {
-        String id = destination.getId() == null ? "<no id set>" : destination.getId().toString();
-        return "fitconnect.receiver.destinations[id=" + id + "]." + property;
+    /** Names a tenant/destination's property for an error/exception message. */
+    private static String describe(String tenantKey, String destinationKey, String property) {
+        return "fitconnect.receiver.tenants[" + tenantKey + "].destinations[" + destinationKey + "]." + property;
     }
 
     private static SenderConfig toSenderConfig(FitConnectProperties.Sender sender) {

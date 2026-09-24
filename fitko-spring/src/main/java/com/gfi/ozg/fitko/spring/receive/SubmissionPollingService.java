@@ -77,10 +77,10 @@ public class SubmissionPollingService implements SmartLifecycle {
                                     FitConnectProperties.Receiver receiverProperties, ReceivePipelineMetrics metrics,
                                     PollCycleGate pollCycleGate) {
         this.destinations = Objects.requireNonNull(destinations,
-                "fitconnect.receiver.destinations must be set to poll for submissions").all();
+                "fitconnect.receiver.tenants must be set to poll for submissions").all();
         if (this.destinations.isEmpty()) {
             throw new IllegalArgumentException(
-                    "fitconnect.receiver.destinations must contain at least one destination");
+                    "fitconnect.receiver.tenants must contain at least one destination");
         }
         this.runner = Objects.requireNonNull(runner, "runner must not be null");
         this.receiverProperties = Objects.requireNonNull(receiverProperties, "receiverProperties must not be null");

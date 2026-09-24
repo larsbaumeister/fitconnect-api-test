@@ -31,7 +31,7 @@ import java.util.UUID;
  * Mongo, ...) - and can be turned off with
  * {@code fitconnect.receiver.polling.distributed-lock.enabled=false}.
  *
- * <p>The lock name is derived from {@code fitconnect.receiver.destinations}
+ * <p>The lock name is derived from {@code fitconnect.receiver.tenants}
  * directly (not the {@code ReceivingDestinations} bean), so this config needs
  * nothing from {@link FitConnectReceiverAutoConfiguration} and is safely
  * ordered {@code before} it - the {@link PollCycleGate} bean is then present
@@ -50,7 +50,8 @@ public class FitConnectPollLockAutoConfiguration {
             matchIfMissing = true)
     public PollCycleGate fitConnectPollCycleGate(LockProvider lockProvider, FitConnectProperties properties) {
         FitConnectProperties.Polling polling = properties.getReceiver().getPolling();
-        List<UUID> destinationIds = properties.getReceiver().getDestinations().stream()
+        List<UUID> destinationIds = properties.getReceiver().getTenants().values().stream()
+                .flatMap(tenant -> tenant.getDestinations().values().stream())
                 .map(FitConnectProperties.Receiver.Destination::getId)
                 .toList();
         return new ShedLockPollCycleGate(lockProvider, destinationIds, polling.getDistributedLock(),

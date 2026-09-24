@@ -8,7 +8,9 @@ import org.springframework.core.io.Resource;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -26,14 +28,22 @@ import java.util.UUID;
  *   receiver:
  *     client-id: ...
  *     client-secret: ...
- *     destinations:
- *       - id: 9f6bb611-df46-494a-9a98-a253f1362dc7
- *         signing-key: file:/etc/fitconnect/destination-a/signing_key.json
- *         decryption-keys: file:/etc/fitconnect/destination-a/decryption_key.json
- *       - id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
- *         signing-key: file:/etc/fitconnect/destination-b/signing_key.json
- *         decryption-keys: file:/etc/fitconnect/destination-b/decryption_key.json
+ *     tenants:
+ *       stadt-koeln:
+ *         destinations:
+ *           gewerbeanzeige:
+ *             id: 9f6bb611-df46-494a-9a98-a253f1362dc7
+ *             signing-key: file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/signing_key.json
+ *             decryption-keys: file:/etc/fitconnect/stadt-koeln/gewerbeanzeige/decryption_key.json
+ *           baugenehmigung:
+ *             id: 2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234
+ *             signing-key: file:/etc/fitconnect/stadt-koeln/baugenehmigung/signing_key.json
+ *             decryption-keys: file:/etc/fitconnect/stadt-koeln/baugenehmigung/decryption_key.json
  * }</pre>
+ *
+ * <p>A tenant is purely a naming/grouping device for one or more
+ * destinations that belong together (e.g. one municipality with several
+ * Leistungen) - see {@link Receiver#getTenants()}.
  *
  * <p>This class and every nested class here is a plain {@code @Getter}/
  * {@code @Setter} Lombok bean - {@code spring-boot-configuration-processor}
@@ -109,31 +119,45 @@ public class FitConnectProperties {
         private boolean enabled = true;
 
         /**
-         * Default subscriber client id issued by the Self-Service-Portal,
-         * used by any {@link Destination} that doesn't set its own via
-         * {@link Destination#getClientId()}.
+         * Application-wide default subscriber client id issued by the
+         * Self-Service-Portal, used by any {@link Destination} that doesn't
+         * set its own via {@link Destination#getClientId()} and whose
+         * {@link Tenant} doesn't set one via {@link Tenant#getClientId()}
+         * either - the last fallback of a three-level chain (destination
+         * &gt; tenant &gt; here).
          */
         private String clientId;
 
-        /** Default subscriber client secret; see {@link #getClientId()}. */
+        /** Application-wide default subscriber client secret; see {@link #getClientId()}. */
         private String clientSecret;
 
         /**
-         * Every Zustellpunkt (destination) this application receives on. At
-         * least one is required whenever {@code fitconnect.receiver.enabled}
-         * is {@code true}. One {@link com.gfi.ozg.fitko.spring.receive.SubmissionPollingService}
-         * handles the whole list, polling each destination once per cycle -
-         * use this to receive several Leistungen (each with its own
-         * destination) in one application.
+         * Every tenant this application receives for, keyed by a short name
+         * you choose (e.g. a municipality or authority's slug). At least one
+         * tenant with at least one destination is required whenever {@code
+         * fitconnect.receiver.enabled} is {@code true}. One {@link
+         * com.gfi.ozg.fitko.spring.receive.SubmissionPollingService} handles
+         * every destination of every tenant, polling each once per cycle.
          *
-         * <p>Each destination has its own signing/decryption keys, since a
-         * FIT-Connect Zustellpunkt is registered with its own key pair
-         * regardless of which subscriber client polls it (e.g. distinct
-         * authorities each managing their own certificates, even where they
-         * happen to share one client-id/client-secret). Internally this
-         * means one SDK {@code SubscriberClient} per destination.
+         * <p>A tenant is a configuration-time grouping and naming device
+         * only - it has no runtime meaning of its own. It exists for two
+         * reasons: naming (a destination shows up in logs/errors as {@code
+         * tenants[<tenant>].destinations[<name>]} instead of a bare list
+         * index) and defaulting (a tenant can set its own {@link
+         * Tenant#getClientId()}/{@link Tenant#getClientSecret()}, used by
+         * every destination it owns that doesn't override it).
+         *
+         * <p><b>Why a {@code Map}, not a {@code List}:</b> Spring's relaxed
+         * binder does not merge a {@code List}-typed property across
+         * property sources - whichever single source defines it wins
+         * outright, and any other source's entries are silently dropped (a
+         * {@code Map}, at every nesting level, merges per key instead). A
+         * tenant/destination map can therefore be split across several YAML
+         * files (e.g. one per tenant, imported via {@code
+         * spring.config.import}) as the configured set grows, without that
+         * silent-data-loss trap - see {@code docs/configuration.md}.
          */
-        private List<Destination> destinations = new ArrayList<>();
+        private Map<String, Tenant> tenants = new LinkedHashMap<>();
 
         /** Accept self-signed destination certificates. Never enable this in PROD. */
         private boolean allowInsecurePublicKey = false;
@@ -151,11 +175,54 @@ public class FitConnectProperties {
         private final Callback callback = new Callback();
 
         /**
+         * One tenant this application receives for: a named group of one or
+         * more {@link Destination}s, and an optional client-id/client-secret
+         * default for all of them. See {@link Receiver#getTenants()} for why
+         * this grouping exists.
+         */
+        @Getter
+        @Setter
+        public static class Tenant {
+
+            /**
+             * This tenant's default subscriber client id, used by any {@link
+             * Destination} below that doesn't set its own via {@link
+             * Destination#getClientId()}. Falls back to {@link
+             * Receiver#getClientId()} if unset here too. Set it only when
+             * every destination of this tenant shares one Self-Service-Portal
+             * registration that differs from the application's other
+             * tenants.
+             */
+            private String clientId;
+
+            /** This tenant's default subscriber client secret; see {@link #getClientId()}. */
+            private String clientSecret;
+
+            /**
+             * Every Zustellpunkt (destination) belonging to this tenant,
+             * keyed by a short name you choose (e.g. the Leistung it serves).
+             * A tenant is free to have just one destination or many - each
+             * still gets its own entry in the poll cycle either way. At
+             * least one is required for every tenant listed under {@link
+             * Receiver#getTenants()}.
+             *
+             * <p>Each destination has its own signing/decryption keys, since
+             * a FIT-Connect Zustellpunkt is registered with its own key pair
+             * regardless of which subscriber client polls it (e.g. distinct
+             * authorities each managing their own certificates, even where
+             * they happen to share one client-id/client-secret). Internally
+             * this means one SDK {@code SubscriberClient} per destination.
+             */
+            private Map<String, Destination> destinations = new LinkedHashMap<>();
+        }
+
+        /**
          * One Zustellpunkt (destination) this application receives on, and
          * the credentials/keys it was registered with. {@link #getClientId()}/
-         * {@link #getClientSecret()} are optional and fall back to {@link
-         * Receiver#getClientId()}/{@link Receiver#getClientSecret()} - set
-         * them here only if this destination was registered under a
+         * {@link #getClientSecret()} are optional and fall back first to the
+         * owning {@link Tenant#getClientId()}/{@link Tenant#getClientSecret()},
+         * then to {@link Receiver#getClientId()}/{@link Receiver#getClientSecret()}
+         * - set them here only if this destination was registered under a
          * different Self-Service-Portal client than the others.
          */
         @Getter
@@ -165,10 +232,10 @@ public class FitConnectProperties {
             /** Zustellpunkt (destination) id to poll/receive callbacks for. */
             private UUID id;
 
-            /** Overrides {@link Receiver#getClientId()} for this destination. */
+            /** Overrides the owning tenant's (and, transitively, {@link Receiver#getClientId()}'s) default for this destination. */
             private String clientId;
 
-            /** Overrides {@link Receiver#getClientSecret()} for this destination. */
+            /** Overrides the owning tenant's (and, transitively, {@link Receiver#getClientSecret()}'s) default for this destination. */
             private String clientSecret;
 
             /** This destination's private signing key JWK, e.g. {@code file:/etc/fitconnect/signing_key.json}. */

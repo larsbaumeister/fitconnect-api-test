@@ -35,8 +35,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SampleApplicationYamlTest {
 
     private static final Path SAMPLE_YAML = Path.of("../docs/application.yaml");
-    private static final UUID DESTINATION_A = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
-    private static final UUID DESTINATION_B = UUID.fromString("2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234");
+    private static final UUID DESTINATION_GEWERBEANZEIGE = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
+    private static final UUID DESTINATION_BAUGENEHMIGUNG = UUID.fromString("2b7e8f2a-6e0a-4c1a-8f0a-7e6c9a2b1234");
+    private static final UUID DESTINATION_FOERDERANTRAG = UUID.fromString("5c3e9a10-1f2b-4d3e-9a2b-1234567890ab");
+    private static final UUID DESTINATION_SONDERFOERDERUNG = UUID.fromString("7d4f2e11-8a3c-4b5d-9e6f-0123456789cd");
 
     @Test
     void bindsCleanlyAgainstFitConnectProperties() throws Exception {
@@ -61,23 +63,40 @@ class SampleApplicationYamlTest {
         assertThat(properties.getReceiver().isSkipSubmissionDataValidation()).isFalse();
         assertThat(properties.getReceiver().isDisableAutoReject()).isFalse();
 
-        List<FitConnectProperties.Receiver.Destination> destinations = properties.getReceiver().getDestinations();
-        assertThat(destinations).hasSize(2);
+        Map<String, FitConnectProperties.Receiver.Tenant> tenants = properties.getReceiver().getTenants();
+        assertThat(tenants).hasSize(2);
 
-        FitConnectProperties.Receiver.Destination destinationA = destinations.get(0);
-        assertThat(destinationA.getId()).isEqualTo(DESTINATION_A);
-        assertThat(destinationA.getSigningKey()).isNotNull();
-        assertThat(destinationA.getDecryptionKeys()).hasSize(1);
-        assertThat(destinationA.getClientId()).isNull(); // falls back to receiver.client-id
-        assertThat(destinationA.getCallbackSecret()).isEqualTo("destination-a-callback-secret");
+        FitConnectProperties.Receiver.Tenant stadtKoeln = tenants.get("stadt-koeln");
+        assertThat(stadtKoeln.getClientId()).isNull(); // no tenant-level override
+        assertThat(stadtKoeln.getDestinations()).hasSize(2);
 
-        FitConnectProperties.Receiver.Destination destinationB = destinations.get(1);
-        assertThat(destinationB.getId()).isEqualTo(DESTINATION_B);
-        assertThat(destinationB.getSigningKey()).isNotNull();
-        assertThat(destinationB.getDecryptionKeys()).hasSize(1);
-        assertThat(destinationB.getClientId()).isEqualTo("destination-b-id");
-        assertThat(destinationB.getClientSecret()).isEqualTo("destination-b-secret");
-        assertThat(destinationB.getCallbackSecret()).isNull(); // only reachable via polling
+        FitConnectProperties.Receiver.Destination gewerbeanzeige = stadtKoeln.getDestinations().get("gewerbeanzeige");
+        assertThat(gewerbeanzeige.getId()).isEqualTo(DESTINATION_GEWERBEANZEIGE);
+        assertThat(gewerbeanzeige.getSigningKey()).isNotNull();
+        assertThat(gewerbeanzeige.getDecryptionKeys()).hasSize(1);
+        assertThat(gewerbeanzeige.getClientId()).isNull(); // falls back to receiver.client-id
+        assertThat(gewerbeanzeige.getCallbackSecret()).isEqualTo("stadt-koeln-gewerbeanzeige-callback-secret");
+
+        FitConnectProperties.Receiver.Destination baugenehmigung = stadtKoeln.getDestinations().get("baugenehmigung");
+        assertThat(baugenehmigung.getId()).isEqualTo(DESTINATION_BAUGENEHMIGUNG);
+        assertThat(baugenehmigung.getSigningKey()).isNotNull();
+        assertThat(baugenehmigung.getDecryptionKeys()).hasSize(1);
+        assertThat(baugenehmigung.getClientId()).isNull(); // falls back to receiver.client-id
+        assertThat(baugenehmigung.getCallbackSecret()).isNull(); // only reachable via polling
+
+        FitConnectProperties.Receiver.Tenant landNrw = tenants.get("land-nrw");
+        assertThat(landNrw.getClientId()).isEqualTo("land-nrw-id"); // tenant-level default
+        assertThat(landNrw.getClientSecret()).isEqualTo("land-nrw-secret");
+        assertThat(landNrw.getDestinations()).hasSize(2);
+
+        FitConnectProperties.Receiver.Destination foerderantrag = landNrw.getDestinations().get("foerderantrag");
+        assertThat(foerderantrag.getId()).isEqualTo(DESTINATION_FOERDERANTRAG);
+        assertThat(foerderantrag.getClientId()).isNull(); // falls back to land-nrw's tenant-level default
+
+        FitConnectProperties.Receiver.Destination sonderfoerderung = landNrw.getDestinations().get("sonderfoerderung");
+        assertThat(sonderfoerderung.getId()).isEqualTo(DESTINATION_SONDERFOERDERUNG);
+        assertThat(sonderfoerderung.getClientId()).isEqualTo("sonderfoerderung-id"); // destination-level override
+        assertThat(sonderfoerderung.getClientSecret()).isEqualTo("sonderfoerderung-secret");
 
         assertThat(properties.getReceiver().getPolling().isEnabled()).isTrue();
         assertThat(properties.getReceiver().getPolling().getInitialDelay()).isEqualTo(Duration.ofSeconds(5));
@@ -102,9 +121,11 @@ class SampleApplicationYamlTest {
         fakeEnvVars.put("FITCONNECT_SENDER_CLIENT_SECRET", "sender-secret");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_ID", "receiver-id");
         fakeEnvVars.put("FITCONNECT_RECEIVER_CLIENT_SECRET", "receiver-secret");
-        fakeEnvVars.put("FITCONNECT_DESTINATION_A_CALLBACK_SECRET", "destination-a-callback-secret");
-        fakeEnvVars.put("FITCONNECT_DESTINATION_B_CLIENT_ID", "destination-b-id");
-        fakeEnvVars.put("FITCONNECT_DESTINATION_B_CLIENT_SECRET", "destination-b-secret");
+        fakeEnvVars.put("FITCONNECT_STADT_KOELN_GEWERBEANZEIGE_CALLBACK_SECRET", "stadt-koeln-gewerbeanzeige-callback-secret");
+        fakeEnvVars.put("FITCONNECT_LAND_NRW_CLIENT_ID", "land-nrw-id");
+        fakeEnvVars.put("FITCONNECT_LAND_NRW_CLIENT_SECRET", "land-nrw-secret");
+        fakeEnvVars.put("FITCONNECT_SONDERFOERDERUNG_CLIENT_ID", "sonderfoerderung-id");
+        fakeEnvVars.put("FITCONNECT_SONDERFOERDERUNG_CLIENT_SECRET", "sonderfoerderung-secret");
 
         MutablePropertySources sources = new MutablePropertySources();
         sources.addLast(new MapPropertySource("fakeEnv", fakeEnvVars));
