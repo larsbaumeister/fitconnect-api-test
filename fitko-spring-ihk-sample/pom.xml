@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- A normal Spring Boot application, same shape as fitko-spring-sample.
+       The only FIT-Connect-specific line is the `fitko-spring` dependency
+       below; everything else is stock Spring Boot / SDK test tooling. -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.example</groupId>
+  <artifactId>fitko-spring-ihk-sample</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>fitko-spring-ihk-sample</name>
+  <description>
+    Coverage-test consumer of fitko-spring against a concrete multi-tenant
+    requirement: several regional tenants receiving Antraege, and a
+    config-driven decision (keyed on the LeiKa-Schluessel/URN of the
+    Leistung) for which downstream process to start for each one.
+    Deliberately not a general-purpose sample - see its README for what
+    it's testing and what it found.
+  </description>
+
+  <properties>
+    <java.version>17</java.version>
+  </properties>
+
+  <dependencies>
+    <!-- Not on Maven Central yet - build it into your local ~/.m2 first:
+             cd ../fitko-spring && mvn install
+         (see the top-level README's "Prerequisites"). Brings the FIT-Connect
+         SDK transitively - its dev.fitko.fitconnect.tools.keygen.TestKeyBuilder
+         is what the tests below use to mint throwaway JWKs, so no key
+         material has to be committed to the repository. -->
+    <dependency>
+      <groupId>com.gfi.ozg.fitko</groupId>
+      <artifactId>fitko-spring</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

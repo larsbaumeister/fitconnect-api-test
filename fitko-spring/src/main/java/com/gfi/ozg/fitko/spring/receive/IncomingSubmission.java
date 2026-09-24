@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -74,6 +75,17 @@ public final class IncomingSubmission {
 
     public String getDataMimeType() {
         return delegate.getDataMimeType();
+    }
+
+    /**
+     * The submission data's JSON Schema reference (the Antrag/Leistung schema
+     * this submission's {@link #getDataAsString()}/{@link #getDataAsBytes()}
+     * content was validated against on send) - the identifier to route on
+     * when a service accepts more than one data schema, or when different
+     * schemas must start different downstream processes.
+     */
+    public URI getDataSchemaUri() {
+        return delegate.getDataSchemaUri();
     }
 
     public PublicService getServiceType() {

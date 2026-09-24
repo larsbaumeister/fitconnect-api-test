@@ -27,11 +27,12 @@ All project documentation lives in **[`docs/`](docs)**:
   — what a FIT-Connect submission does and doesn't tell you about the
   applicant, and what you have to build yourself.
 
-The two example projects keep their own `README.md` as their entry point
+The example projects keep their own `README.md` as their entry point
 ([`fitko-spring-sample/`](fitko-spring-sample),
+[`fitko-spring-ihk-sample/`](fitko-spring-ihk-sample),
 [`fitko-spring-integration-tests/`](fitko-spring-integration-tests)).
 
-## Example application
+## Example applications
 
 - **[`fitko-spring-sample/`](fitko-spring-sample)** — a small, complete
   Spring Boot app that integrates the starter: a REST endpoint that sends a
@@ -39,6 +40,12 @@ The two example projects keep their own `README.md` as their entry point
   the receive side, an annotated `application.yaml`, and the three
   integration-test patterns. Copy from here to bootstrap your own service.
   `cd fitko-spring && mvn install` first, then `cd fitko-spring-sample && mvn test`.
+- **[`fitko-spring-ihk-sample/`](fitko-spring-ihk-sample)** — a coverage
+  test, not a general-purpose sample: several numbered regional tenants
+  receiving Antraege, and a config-driven, per-tenant decision for which
+  downstream process to start for a given Leistung. See its README for what
+  it found `fitko-spring` already covers vs. what a multi-tenant consumer
+  still has to build itself.
 
 ## End-to-end tests
 
@@ -49,15 +56,6 @@ The two example projects keep their own `README.md` as their entry point
   a destination not everyone has. `cd fitko-spring && mvn install` first, then
   `cd fitko-spring-integration-tests && mvn verify` (see its README for the
   environment variables; runs green and self-skips without them).
-
-## Camunda 7 process application
-
-- **[`fitko-camunda7/`](fitko-camunda7)** — a standalone WAR for a Camunda
-  Platform 7 shared engine on **WildFly** (plain Jakarta EE / CDI, no Spring):
-  a self-triggering timer process that polls a destination for new submissions
-  and routes each one through an embedded sub-process driven by a DMN decision
-  table. `cd fitko-camunda7 && mvn package` builds
-  `target/fitko-fitconnect-camunda7.war`.
 
 ## Prerequisites
 

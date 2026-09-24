@@ -1,0 +1,89 @@
+# =====================================================================
+# fitko-spring-ihk-sample configuration
+#
+# Coverage test: two of the (eventual) 79 regional tenants receiving
+# Antraege, and a config-driven decision for which Camunda process to start
+# per Leistung. See ../../README.md for what this project is testing.
+#
+# `fitconnect.*` binds to com.gfi.ozg.fitko.spring.FitConnectProperties -
+# see fitko-spring's docs/configuration.md for the full reference.
+# `antrag-routing.*` binds to com.example.ihk.routing.AntragRoutingProperties
+# (this project's own routing decision, not part of fitko-spring).
+#
+# Values with no `:default` are required - the app fails fast at startup
+# naming the missing one. Get a TEST client from the Self-Service-Portal:
+#   https://docs.fitko.de/fit-connect/docs/getting-started/account
+# =====================================================================
+
+spring:
+  application:
+    name: fitko-spring-ihk-sample
+
+fitconnect:
+  enabled: true
+  environment: ${FITCONNECT_ENVIRONMENT:TEST}
+
+  # This sample only receives; a real sending use case would add a `sender`
+  # block the same way fitko-spring-sample does.
+  sender:
+    enabled: false
+
+  receiver:
+    enabled: true
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+
+    # Two of the 79 IHK regions as tenants, for this coverage test - see
+    # fitko-spring's docs/configuration.md, "Splitting configuration across
+    # files", for growing this to all 79 without one unmanageable block (one
+    # imported file per region, keyed the same way).
+    tenants:
+      101-aachen:
+        destinations:
+          antragseingang:
+            id: ${FITCONNECT_AACHEN_DESTINATION_ID}
+            signing-key: ${FITCONNECT_AACHEN_SIGNING_KEY:file:./keys/101-aachen/signing_key.json}
+            decryption-keys:
+              - ${FITCONNECT_AACHEN_DECRYPTION_KEY:file:./keys/101-aachen/decryption_key.json}
+      133-hannover:
+        destinations:
+          antragseingang:
+            id: ${FITCONNECT_HANNOVER_DESTINATION_ID}
+            signing-key: ${FITCONNECT_HANNOVER_SIGNING_KEY:file:./keys/133-hannover/signing_key.json}
+            decryption-keys:
+              - ${FITCONNECT_HANNOVER_DECRYPTION_KEY:file:./keys/133-hannover/decryption_key.json}
+
+    default-outcome: LEAVE
+
+    polling:
+      enabled: true
+      initial-delay: 5s
+      interval: ${FITCONNECT_POLL_INTERVAL:30s}
+
+# The routing decision under test: which Camunda process to start for a
+# given (tenant, Leistung) pair, keyed by tenant then by the Leistung's
+# LeiKa-Schluessel URN - config-driven so ops/business can add a Leistung, or
+# override it for one region, without a code change. See
+# com.example.ihk.routing.AntragRoutingProperties / AntragProcessResolver.
+#
+# The same Leistung (99050035001000) intentionally maps to a different
+# process per tenant here, to prove that's possible: each IHK region may run
+# its own Fachverfahren for a nationally standardized Leistung. The URNs
+# below are illustrative placeholders, not real LeiKa codes - replace with
+# your actual Leistungen.
+antrag-routing:
+  process-by-tenant:
+    101-aachen:
+      "urn:de:fim:leika:leistung:99050035001000": ausbildungsvertrag-process-aachen
+      "urn:de:fim:leika:leistung:99050035002000": sachkundepruefung-process
+    133-hannover:
+      "urn:de:fim:leika:leistung:99050035001000": ausbildungsvertrag-process-hannover
+      "urn:de:fim:leika:leistung:99050035002000": sachkundepruefung-process
+  # Unmapped (tenant, Leistung) pairs are logged and left unresolved (not
+  # guessed) when this is unset - see AntragRoutingListener.
+  default-process-key: manual-review-process
+
+logging:
+  level:
+    com.example.ihk: DEBUG
+    com.gfi.ozg.fitko.spring: DEBUG

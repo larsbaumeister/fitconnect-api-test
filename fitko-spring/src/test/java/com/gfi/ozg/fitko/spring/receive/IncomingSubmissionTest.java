@@ -5,6 +5,7 @@ import dev.fitko.fitconnect.api.domain.model.event.problems.other.TechnicalError
 import dev.fitko.fitconnect.api.domain.subscriber.ReceivedSubmission;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +15,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class IncomingSubmissionTest {
 
@@ -79,6 +81,14 @@ class IncomingSubmissionTest {
         submission.applyIfUnresolved(DefaultOutcome.REJECT);
 
         verify(delegate, never()).rejectSubmission(any());
+    }
+
+    @Test
+    void dataSchemaUriDelegatesToTheSdk() {
+        URI schemaUri = URI.create("https://schema.fitko.de/some-leistung/v1");
+        when(delegate.getDataSchemaUri()).thenReturn(schemaUri);
+
+        assertThat(submission.getDataSchemaUri()).isEqualTo(schemaUri);
     }
 
     @Test
