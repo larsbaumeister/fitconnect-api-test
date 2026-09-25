@@ -4,8 +4,8 @@ import com.gfi.ozg.ficon.processstarter.ProcessStarter;
 import com.gfi.ozg.ficon.processstarter.ProcessStarterLookup;
 import com.gfi.ozg.ficon.processstarter.impl.LoggingProcessStarter;
 import com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter;
-import com.gfi.ozg.ficon.routing.AntragRoutingListener;
-import com.gfi.ozg.ficon.routing.TenantDirectory;
+import com.gfi.ozg.ficon.receive.AntragReceiveListener;
+import com.gfi.ozg.ficon.receive.TenantDirectory;
 import com.gfi.ozg.ficon.support.IhkApplicationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 133-hannover}) wired with real (throwaway) keys, and the SDK's {@code
  * SubscriberClient} mocked out (see {@link IhkApplicationTestSupport}) so nothing touches the network. Proves the
  * whole starter plus this project's own routing beans ({@code
- * AntragRoutingProperties}, {@link TenantDirectory}, {@code
- * AntragProcessResolver}, {@link AntragRoutingListener}, {@link
+ * ProcessStarterRoutingProperties}, {@link TenantDirectory}, {@code
+ * ProcessStarterResolver}, {@link AntragReceiveListener}, {@link
  * ProcessStarterLookup} and both {@link ProcessStarter} implementations)
  * wire up together, the way they would when actually deployed - including
  * {@link ProcessStarterLookup}'s startup-time validation of every class name
@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class IhkAntragRouterApplicationTests extends IhkApplicationTestSupport {
 
     @Autowired
-    AntragRoutingListener antragRoutingListener;
+    AntragReceiveListener antragRoutingListener;
 
     @Autowired
     TenantDirectory tenantDirectory;

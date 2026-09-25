@@ -12,7 +12,7 @@ import java.time.Clock;
 /**
  * Persists incoming submissions - the write side of the inbox.
  *
- * <p>{@link #store} is what lets {@code AntragRoutingListener} tell a
+ * <p>{@link #store} is what lets {@code AntragReceiveListener} tell a
  * <em>re-delivered</em> submission from a new one: delivery is at-least-once
  * (see fitko-spring's architecture.md, "Delivery semantics"), and the classic
  * case is a submission that was stored, but whose {@code accept()} then

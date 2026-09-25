@@ -1,7 +1,7 @@
-package com.gfi.ozg.ficon.routing;
+package com.gfi.ozg.ficon.processstarter;
 
-import com.gfi.ozg.ficon.processstarter.ProcessStarter;
-import com.gfi.ozg.ficon.processstarter.ProcessStarterLookup;
+import com.gfi.ozg.ficon.receive.TenantDirectory;
+
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -10,18 +10,18 @@ import java.util.Optional;
 /**
  * The routing decision itself: which {@link ProcessStarter} implementation
  * (by fully-qualified class name) should handle a given tenant + LeiKa-
- * Schluessel. A pure config lookup into {@link AntragRoutingProperties} - no
+ * Schluessel. A pure config lookup into {@link ProcessStarterRoutingProperties} - no
  * DMN engine, no per-submission Java branching to maintain, an ops/business
  * change is a config change. Deliberately has no Spring-context/bean-lookup
  * knowledge of its own - {@link ProcessStarterLookup} turns the class name
  * this returns into the actual bean.
  */
 @Component
-public class AntragProcessResolver {
+public class ProcessStarterResolver {
 
-    private final AntragRoutingProperties properties;
+    private final ProcessStarterRoutingProperties properties;
 
-    public AntragProcessResolver(AntragRoutingProperties properties) {
+    public ProcessStarterResolver(ProcessStarterRoutingProperties properties) {
         this.properties = properties;
     }
 

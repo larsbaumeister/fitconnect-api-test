@@ -1,7 +1,7 @@
-package com.gfi.ozg.ficon.routing;
+package com.gfi.ozg.ficon.processstarter;
 
-import com.gfi.ozg.ficon.processstarter.ProcessStarter;
-import com.gfi.ozg.ficon.processstarter.ProcessStarterLookup;
+import com.gfi.ozg.ficon.receive.TenantDirectory;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.LinkedHashMap;
@@ -28,7 +28,7 @@ import java.util.Map;
  * without becoming unmanageable.
  */
 @ConfigurationProperties(prefix = "antrag-routing")
-public class AntragRoutingProperties {
+public class ProcessStarterRoutingProperties {
 
     /** {@code tenant -> (leikaSchluessel -> fully-qualified ProcessStarter implementation class name)}. */
     private Map<String, Map<String, String>> processStarterByTenant = new LinkedHashMap<>();
@@ -38,7 +38,7 @@ public class AntragRoutingProperties {
      * when the incoming (tenant, Leistung) pair has no entry in {@link
      * #processStarterByTenant} - e.g. {@code NoopProcessStarter}, or a
      * manual-review implementation. Left unset, an unmapped combination is
-     * logged and no process is started (see {@code AntragRoutingListener})
+     * logged and no process is started (see {@code AntragReceiveListener})
      * rather than guessed.
      */
     private String defaultProcessStarterClass;

@@ -6,7 +6,7 @@ package com.gfi.ozg.ficon.processstarter;
  * point (one implementation replacing a default), several {@code
  * ProcessStarter} beans are meant to coexist here. Which one handles a given
  * Antrag is decided per (tenant, Leistung) in {@code application.yaml} (see
- * {@code com.gfi.ozg.ficon.routing.AntragRoutingProperties}, by fully-qualified
+ * {@code com.gfi.ozg.ficon.processstarter.ProcessStarterRoutingProperties}, by fully-qualified
  * class name) and resolved to the matching Spring bean by {@link
  * ProcessStarterLookup} - not injected directly.
  *

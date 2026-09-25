@@ -1,9 +1,11 @@
-package com.gfi.ozg.ficon.routing;
+package com.gfi.ozg.ficon.receive;
 
 import com.gfi.ozg.ficon.inbox.SubmissionInbox;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
+import com.gfi.ozg.ficon.processstarter.ProcessStarterResolver;
+import com.gfi.ozg.ficon.processstarter.ProcessStarterRoutingProperties;
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import org.junit.jupiter.api.Test;
 
@@ -25,14 +27,14 @@ import static org.mockito.Mockito.when;
  * {@code GewerbeanmeldungHandlerTest}. {@link SubmissionInbox} is mocked -
  * {@code InboxIntegrationTest} covers storing and dispatching for real.
  */
-class AntragRoutingListenerTest {
+class AntragReceiveListenerTest {
 
     private static final String AUSBILDUNGSVERTRAG = "urn:de:fim:leika:leistung:99050035001000";
     private static final String UNMAPPED = "urn:de:fim:leika:leistung:00000000000000";
     private static final UUID AACHEN_DESTINATION = UUID.fromString("9f6bb611-df46-494a-9a98-a253f1362dc7");
 
     private final SubmissionInbox inbox = mock(SubmissionInbox.class);
-    private final AntragRoutingListener listener = new AntragRoutingListener(resolver(), tenantDirectory(), inbox);
+    private final AntragReceiveListener listener = new AntragReceiveListener(resolver(), tenantDirectory(), inbox);
 
     @Test
     void storesTheSubmissionForItsTenantBeforeAcceptingIt() {
@@ -101,11 +103,11 @@ class AntragRoutingListenerTest {
         return submission;
     }
 
-    private static AntragProcessResolver resolver() {
-        AntragRoutingProperties properties = new AntragRoutingProperties();
+    private static ProcessStarterResolver resolver() {
+        ProcessStarterRoutingProperties properties = new ProcessStarterRoutingProperties();
         properties.setProcessStarterByTenant(Map.of(
                 "101-aachen", Map.of(AUSBILDUNGSVERTRAG, "com.gfi.ozg.ficon.SomeProcessStarter")));
-        return new AntragProcessResolver(properties);
+        return new ProcessStarterResolver(properties);
     }
 
     private static TenantDirectory tenantDirectory() {

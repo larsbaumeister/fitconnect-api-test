@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The inbox. One inbox_submission row per FIT-Connect submission this
-     application has accepted. AntragRoutingListener writes it BEFORE calling
+     application has accepted. AntragReceiveListener writes it BEFORE calling
      accept(), so the primary key doubles as the de-duplication check for a
      re-delivered submission (e.g. after accept() itself failed).
      AntragDispatcher then hands PENDING rows to their ProcessStarter. A row

@@ -2,7 +2,6 @@ package com.gfi.ozg.ficon.processstarter;
 
 import com.gfi.ozg.ficon.processstarter.impl.LoggingProcessStarter;
 import com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter;
-import com.gfi.ozg.ficon.routing.AntragRoutingProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
@@ -27,7 +26,7 @@ class ProcessStarterLookupTest {
         ApplicationContext context = mock(ApplicationContext.class);
         when(context.getBean(NoopProcessStarter.class)).thenReturn(bean);
 
-        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new AntragRoutingProperties());
+        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new ProcessStarterRoutingProperties());
 
         assertThat(lookup.resolve(NOOP)).isSameAs(bean);
     }
@@ -37,7 +36,7 @@ class ProcessStarterLookupTest {
         NoopProcessStarter bean = new NoopProcessStarter();
         ApplicationContext context = mock(ApplicationContext.class);
         when(context.getBean(NoopProcessStarter.class)).thenReturn(bean);
-        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new AntragRoutingProperties());
+        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new ProcessStarterRoutingProperties());
 
         lookup.resolve(NOOP);
         lookup.resolve(NOOP);
@@ -47,7 +46,7 @@ class ProcessStarterLookupTest {
 
     @Test
     void failsWithAClearErrorForAClassThatDoesNotExist() {
-        ProcessStarterLookup lookup = new ProcessStarterLookup(mock(ApplicationContext.class), new AntragRoutingProperties());
+        ProcessStarterLookup lookup = new ProcessStarterLookup(mock(ApplicationContext.class), new ProcessStarterRoutingProperties());
 
         assertThatThrownBy(() -> lookup.resolve("com.gfi.ozg.ficon.processstarter.NoSuchClass"))
                 .isInstanceOf(IllegalStateException.class)
@@ -56,7 +55,7 @@ class ProcessStarterLookupTest {
 
     @Test
     void failsWithAClearErrorForAClassThatDoesNotImplementProcessStarter() {
-        ProcessStarterLookup lookup = new ProcessStarterLookup(mock(ApplicationContext.class), new AntragRoutingProperties());
+        ProcessStarterLookup lookup = new ProcessStarterLookup(mock(ApplicationContext.class), new ProcessStarterRoutingProperties());
 
         assertThatThrownBy(() -> lookup.resolve("java.lang.String"))
                 .isInstanceOf(IllegalStateException.class)
@@ -67,7 +66,7 @@ class ProcessStarterLookupTest {
     void failsWithAClearErrorWhenTheClassHasNoMatchingSpringBean() {
         ApplicationContext context = mock(ApplicationContext.class);
         when(context.getBean(NoopProcessStarter.class)).thenThrow(new NoSuchBeanDefinitionException(NoopProcessStarter.class));
-        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new AntragRoutingProperties());
+        ProcessStarterLookup lookup = new ProcessStarterLookup(context, new ProcessStarterRoutingProperties());
 
         assertThatThrownBy(() -> lookup.resolve(NOOP))
                 .isInstanceOf(IllegalStateException.class)
@@ -82,7 +81,7 @@ class ProcessStarterLookupTest {
         when(context.getBean(NoopProcessStarter.class)).thenReturn(noop);
         when(context.getBean(LoggingProcessStarter.class)).thenReturn(logging);
 
-        AntragRoutingProperties properties = new AntragRoutingProperties();
+        ProcessStarterRoutingProperties properties = new ProcessStarterRoutingProperties();
         properties.setProcessStarterByTenant(Map.of(
                 "101-aachen", Map.of("urn:de:fim:leika:leistung:99050035001000", LOGGING),
                 "133-hannover", Map.of("urn:de:fim:leika:leistung:99050035001000", NOOP)));
@@ -100,7 +99,7 @@ class ProcessStarterLookupTest {
 
     @Test
     void validateConfiguredClassesFailsFastOnABadEntry() {
-        AntragRoutingProperties properties = new AntragRoutingProperties();
+        ProcessStarterRoutingProperties properties = new ProcessStarterRoutingProperties();
         properties.setDefaultProcessStarterClass("com.gfi.ozg.ficon.processstarter.NoSuchClass");
         ProcessStarterLookup lookup = new ProcessStarterLookup(mock(ApplicationContext.class), properties);
 

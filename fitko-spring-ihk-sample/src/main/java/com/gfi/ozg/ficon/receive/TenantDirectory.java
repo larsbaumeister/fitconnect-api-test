@@ -1,4 +1,4 @@
-package com.gfi.ozg.ficon.routing;
+package com.gfi.ozg.ficon.receive;
 
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import org.springframework.stereotype.Component;

@@ -10,7 +10,7 @@ import com.gfi.ozg.ficon.inbox.InboxSubmission;
  *
  * <p>The submission is already accepted on FIT-Connect by the time this is
  * built (it was persisted first, then accepted - see {@code
- * AntragRoutingListener}), so there is nothing to accept or reject here any
+ * AntragReceiveListener}), so there is nothing to accept or reject here any
  * more: return a {@link StartedProcess}, or throw - see {@link ProcessStarter#start}.
  *
  * <p>{@code submission} is a managed JPA entity, and {@code start} runs

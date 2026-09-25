@@ -1,4 +1,4 @@
-package com.gfi.ozg.ficon.routing;
+package com.gfi.ozg.ficon.receive;
 
 import com.gfi.ozg.ficon.inbox.AntragDispatcher;
 import com.gfi.ozg.ficon.inbox.SubmissionInbox;
@@ -6,6 +6,7 @@ import com.gfi.ozg.ficon.processstarter.ProcessStarter;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import com.gfi.ozg.fitko.spring.receive.SubmissionEventListener;
 import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
+import com.gfi.ozg.ficon.processstarter.ProcessStarterResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,15 +34,15 @@ import org.springframework.stereotype.Component;
  * submission on the delivery service and retries it next poll cycle.
  */
 @Component
-public class AntragRoutingListener {
+public class AntragReceiveListener {
 
-    private static final Logger log = LoggerFactory.getLogger(AntragRoutingListener.class);
+    private static final Logger log = LoggerFactory.getLogger(AntragReceiveListener.class);
 
-    private final AntragProcessResolver resolver;
+    private final ProcessStarterResolver resolver;
     private final TenantDirectory tenants;
     private final SubmissionInbox inbox;
 
-    public AntragRoutingListener(AntragProcessResolver resolver, TenantDirectory tenants, SubmissionInbox inbox) {
+    public AntragReceiveListener(ProcessStarterResolver resolver, TenantDirectory tenants, SubmissionInbox inbox) {
         this.resolver = resolver;
         this.tenants = tenants;
         this.inbox = inbox;

@@ -5,7 +5,7 @@ import com.gfi.ozg.ficon.processstarter.ProcessStartRequest;
 import com.gfi.ozg.ficon.processstarter.ProcessStarter;
 import com.gfi.ozg.ficon.processstarter.ProcessStarterLookup;
 import com.gfi.ozg.ficon.processstarter.StartedProcess;
-import com.gfi.ozg.ficon.routing.AntragProcessResolver;
+import com.gfi.ozg.ficon.processstarter.ProcessStarterResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -55,13 +55,13 @@ public class AntragDispatcher {
     private static final Logger log = LoggerFactory.getLogger(AntragDispatcher.class);
 
     private final InboxSubmissionRepository repository;
-    private final AntragProcessResolver resolver;
+    private final ProcessStarterResolver resolver;
     private final ProcessStarterLookup processStarters;
     private final TransactionTemplate transactions;
     private final AntragDispatchProperties properties;
     private final Clock clock;
 
-    public AntragDispatcher(InboxSubmissionRepository repository, AntragProcessResolver resolver,
+    public AntragDispatcher(InboxSubmissionRepository repository, ProcessStarterResolver resolver,
                             ProcessStarterLookup processStarters, TransactionTemplate transactions,
                             AntragDispatchProperties properties, Clock clock) {
         this.repository = repository;

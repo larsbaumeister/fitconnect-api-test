@@ -23,29 +23,38 @@ Everything specific to this requirement lives in this project instead.
 
 ## What's here
 
-Two packages, split by concern:
+Three packages, in the order an Antrag passes through them:
 
-- **`com.gfi.ozg.ficon.routing`** - the routing *decision*: which tenant
-  received an Antrag, and which `ProcessStarter` implementation (by
-  fully-qualified class name) that tenant uses for its Leistung. No
-  knowledge of how a process actually gets started.
-  - `AntragRoutingProperties` / `AntragProcessResolver` - config lookup:
-    `antrag-routing.process-starter-by-tenant.<tenant>.<leikaSchluessel>` ->
-    a `ProcessStarter` class name, with a global
-    `default-process-starter-class` fallback. A pure config lookup - no DMN
-    engine, no per-submission code branch to maintain per Leistung.
+- **`com.gfi.ozg.ficon.receive`** - getting an Antrag off FIT-Connect:
+  - `AntragReceiveListener` - on every `SubmissionReceivedEvent`: checks
+    that some `ProcessStarter` is configured for it (otherwise it is left on
+    the delivery service), stores it in the inbox, then `accept()`s it.
+    Starts no process itself.
   - `TenantDirectory` - which tenant a destination (identified only by UUID
     on the receive event) belongs to.
-  - `AntragRoutingListener` - ties the above together on every
-    `SubmissionReceivedEvent`, then hands off to `processstarter.ProcessStarterLookup`.
-- **`com.gfi.ozg.ficon.processstarter`** - the extension point and its
-  dispatch mechanism, entirely unaware of tenants/Leistungen:
+- **`com.gfi.ozg.ficon.inbox`** - accepted Antraege, persisted (JPA,
+  Liquibase changelog in `db/changelog`):
+  - `InboxSubmission` / `InboxAttachment` / `SubmissionInbox` - the stored
+    submission with everything needed to work on it later, and the store
+    that detects a re-delivered one.
+  - `AntragDispatcher` (`@Scheduled`) - hands `PENDING` submissions to their
+    `ProcessStarter` and records the outcome (`antrag-dispatch.*`).
+- **`com.gfi.ozg.ficon.processstarter`** - the extension point and how the
+  right implementation is chosen for an Antrag:
   - `ProcessStarter` - one implementation per way of actually starting a
     process; several coexist as ordinary Spring beans (unlike a typical
     single-implementation `@ConditionalOnMissingBean` extension point).
-  - `ProcessStarterLookup` - resolves a configured fully-qualified class
-    name to the matching Spring-managed bean (`ApplicationContext.getBean(Class)`,
-    not raw reflection instantiation, so an implementation can still
+    Returns a `StartedProcess` (stored on the submission) or throws
+    `ProcessStartRejectedException`.
+  - `ProcessStarterRoutingProperties` / `ProcessStarterResolver` - the
+    routing *decision*, a pure config lookup:
+    `antrag-routing.process-starter-by-tenant.<tenant>.<leikaSchluessel>` ->
+    a `ProcessStarter` class name, with a global
+    `default-process-starter-class` fallback. No DMN engine, no
+    per-submission code branch to maintain per Leistung.
+  - `ProcessStarterLookup` - resolves that fully-qualified class name to the
+    matching Spring-managed bean (`ApplicationContext.getBean(Class)`, not
+    raw reflection instantiation, so an implementation can still
     constructor-inject whatever it needs) and validates every class name
     referenced in config eagerly at startup, so a typo fails fast rather
     than on the first matching submission.
@@ -104,7 +113,7 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
    extension point for that.
 
 5. **Routing decision itself required zero fitko-spring changes** -
-   `AntragProcessResolver` is ~20 lines against `IncomingSubmission.getServiceType().getIdentifier()`
+   `ProcessStarterResolver` is ~20 lines against `IncomingSubmission.getServiceType().getIdentifier()`
    (already exposed) plus `TenantDirectory`. The per-tenant override (same
    Leistung, different `ProcessStarter` class for `101-aachen` vs.
    `133-hannover`) is just one more map level in this project's own
@@ -146,12 +155,12 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
    derivable from the submission (it comes from `TenantDirectory`); every
    other current field was. One consequence worth flagging: `IncomingSubmission.accept()`/
    `.reject()` are now reachable from inside a `ProcessStarter` too, even
-   though `AntragRoutingListener` still owns calling `accept()` (after
+   though `AntragReceiveListener` still owns calling `accept()` (after
    `start()` returns without throwing) - see `ProcessStartRequest`'s javadoc
    for why implementations must not call `accept()`/`reject()` themselves.
 
 9. **Accepted Antraege go into an inbox table first, not straight into a
-   `ProcessStarter`.** `AntragRoutingListener` stores the whole submission
+   `ProcessStarter`.** `AntragReceiveListener` stores the whole submission
    (payload, metadata as JSON, attachments, reply-channel key) through JPA
    (`com.gfi.ozg.ficon.inbox`, Liquibase changelog in `db/changelog`, H2 for now), and only
    then calls `accept()`. `AntragDispatcher` (`@Scheduled`) hands `PENDING`

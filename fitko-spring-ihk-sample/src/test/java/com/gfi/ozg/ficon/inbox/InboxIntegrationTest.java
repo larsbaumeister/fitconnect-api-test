@@ -4,7 +4,7 @@ import com.gfi.ozg.ficon.processstarter.ProcessStartRejectedException;
 import com.gfi.ozg.ficon.processstarter.ProcessStartRequest;
 import com.gfi.ozg.ficon.processstarter.ProcessStarter;
 import com.gfi.ozg.ficon.processstarter.StartedProcess;
-import com.gfi.ozg.ficon.routing.AntragRoutingListener;
+import com.gfi.ozg.ficon.receive.AntragReceiveListener;
 import com.gfi.ozg.ficon.support.IhkApplicationTestSupport;
 import com.gfi.ozg.ficon.support.TestJwkKeys;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The inbox end to end against H2: {@link AntragRoutingListener} storing a
+ * The inbox end to end against H2: {@link AntragReceiveListener} storing a
  * submission, {@link AntragDispatcher} handing it to a {@link ProcessStarter}
  * and recording the outcome. The Leistung used here has no tenant mapping in
  * {@code application.yaml}, so it goes to {@code
@@ -58,7 +58,7 @@ class InboxIntegrationTest extends IhkApplicationTestSupport {
     private static final String LEISTUNG = "urn:de:fim:leika:leistung:99050035009000";
 
     @Autowired
-    AntragRoutingListener listener;
+    AntragReceiveListener listener;
 
     @Autowired
     AntragDispatcher dispatcher;

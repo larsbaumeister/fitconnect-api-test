@@ -1,6 +1,5 @@
 package com.gfi.ozg.ficon.processstarter;
 
-import com.gfi.ozg.ficon.routing.AntragRoutingProperties;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
@@ -13,8 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolves a configured fully-qualified class name (see {@link
- * AntragRoutingProperties#getProcessStarterByTenant()}/{@link
- * AntragRoutingProperties#getDefaultProcessStarterClass()}) to the actual
+ * ProcessStarterRoutingProperties#getProcessStarterByTenant()}/{@link
+ * ProcessStarterRoutingProperties#getDefaultProcessStarterClass()}) to the actual
  * Spring-managed {@link ProcessStarter} bean of that type.
  *
  * <p>Deliberately goes through {@link ApplicationContext#getBean(Class)}
@@ -36,10 +35,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ProcessStarterLookup {
 
     private final ApplicationContext context;
-    private final AntragRoutingProperties properties;
+    private final ProcessStarterRoutingProperties properties;
     private final Map<String, ProcessStarter> cache = new ConcurrentHashMap<>();
 
-    public ProcessStarterLookup(ApplicationContext context, AntragRoutingProperties properties) {
+    public ProcessStarterLookup(ApplicationContext context, ProcessStarterRoutingProperties properties) {
         this.context = context;
         this.properties = properties;
     }
