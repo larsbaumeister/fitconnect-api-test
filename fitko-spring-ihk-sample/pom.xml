@@ -64,6 +64,17 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- Generates META-INF/spring-configuration-metadata.json for this
+         project's own @ConfigurationProperties (antrag-routing.*,
+         antrag-dispatch.*), so IDEs/the Spring Boot language server know
+         those properties - completion, javadoc as description, and no
+         "Unknown property" warnings in application.yaml. Compile-time only. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -73,6 +84,23 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- Explicit, same as fitko-spring's pom: newer javac versions no
+               longer run annotation processors just because they are on
+               the classpath, so without this the metadata is silently not
+               generated. -->
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-configuration-processor</artifactId>
+              <version>${project.parent.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
