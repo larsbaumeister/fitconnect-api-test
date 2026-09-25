@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Which process AntragDispatcher started for a submission, and when - as
+     reported by the ProcessStarter (StartedProcess). Only set for status
+     STARTED. -->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="002-add-started-process" author="fitko-spring-ihk-sample">
+        <addColumn tableName="inbox_submission">
+            <!-- e.g. a Camunda process definition key -->
+            <column name="process_definition" type="varchar(255)"/>
+            <!-- the instance's id in the target system, if it has one -->
+            <column name="process_instance_id" type="varchar(255)"/>
+            <column name="process_started_at" type="timestamp with time zone"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

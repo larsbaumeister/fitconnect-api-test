@@ -46,6 +46,24 @@
       <version>1.0.0</version>
     </dependency>
 
+    <!-- Inbox: every accepted Antrag is persisted before accept() and
+         dispatched to its ProcessStarter from there (see com.gfi.ozg.ficon.inbox).
+         H2 for this coverage test only - swap the driver (and check the
+         entity @Lob mappings against db/changelog) for a real database. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-liquibase</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

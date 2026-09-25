@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Liquibase master changelog (spring.liquibase.change-log in
+     application.yaml). Add every new change as its own file under changes/
+     and include it here; never edit a changeset that already ran. -->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="changes/001-inbox.xml" relativeToChangelogFile="true"/>
+    <include file="changes/002-started-process.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

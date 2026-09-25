@@ -25,7 +25,7 @@ Everything specific to this requirement lives in this project instead.
 
 Two packages, split by concern:
 
-- **`com.example.ihk.routing`** - the routing *decision*: which tenant
+- **`com.gfi.ozg.ficon.routing`** - the routing *decision*: which tenant
   received an Antrag, and which `ProcessStarter` implementation (by
   fully-qualified class name) that tenant uses for its Leistung. No
   knowledge of how a process actually gets started.
@@ -38,7 +38,7 @@ Two packages, split by concern:
     on the receive event) belongs to.
   - `AntragRoutingListener` - ties the above together on every
     `SubmissionReceivedEvent`, then hands off to `processstarter.ProcessStarterLookup`.
-- **`com.example.ihk.processstarter`** - the extension point and its
+- **`com.gfi.ozg.ficon.processstarter`** - the extension point and its
   dispatch mechanism, entirely unaware of tenants/Leistungen:
   - `ProcessStarter` - one implementation per way of actually starting a
     process; several coexist as ordinary Spring beans (unlike a typical
@@ -49,7 +49,7 @@ Two packages, split by concern:
     constructor-inject whatever it needs) and validates every class name
     referenced in config eagerly at startup, so a typo fails fast rather
     than on the first matching submission.
-  - **`com.example.ihk.processstarter.impl`** - the implementations
+  - **`com.gfi.ozg.ficon.processstarter.impl`** - the implementations
     themselves, kept separate from the interface/dispatch mechanism above:
     `NoopProcessStarter`, `LoggingProcessStarter`, two stubs this sample
     ships, wired to different (tenant, Leistung) pairs in `application.yaml`
@@ -100,7 +100,7 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
 
 4. **Process-starting is correctly out of scope for fitko-spring** (see its
    own architecture.md "Non-goals" - it already excludes routing/provisioning
-   concerns). `com.example.ihk.processstarter` is this project's own
+   concerns). `com.gfi.ozg.ficon.processstarter` is this project's own
    extension point for that.
 
 5. **Routing decision itself required zero fitko-spring changes** -
@@ -150,15 +150,26 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
    `start()` returns without throwing) - see `ProcessStartRequest`'s javadoc
    for why implementations must not call `accept()`/`reject()` themselves.
 
-9. **A `ProcessStarter` can reject an Antrag by throwing
-   `ProcessStartRejectedException`.** Before this, `start()` could only return
-   (accepted) or throw (left on the delivery service and retried every poll
-   cycle, with no end). A permanently unprocessable Antrag therefore looped
-   forever, and `default-outcome` didn't help, because fitko-spring skips it
-   when a listener throws. Now `AntragRoutingListener` catches
-   `ProcessStartRejectedException` and calls `reject()` with its `Problem`s.
-   Any other exception is still treated as transient and retried, now at most
-   once per `polling.retry-cooldown` (20m) instead of every 30s.
+9. **Accepted Antraege go into an inbox table first, not straight into a
+   `ProcessStarter`.** `AntragRoutingListener` stores the whole submission
+   (payload, metadata as JSON, attachments, reply-channel key) through JPA
+   (`com.gfi.ozg.ficon.inbox`, Liquibase changelog in `db/changelog`, H2 for now), and only
+   then calls `accept()`. `AntragDispatcher` (`@Scheduled`) hands `PENDING`
+   rows to their `ProcessStarter`, one transaction and row lock per
+   submission. Why: `accept()` can fail on the network after the Antrag was
+   already processed, and FIT-Connect then delivers it again. With the
+   submission id as primary key, the redelivery is detected, and the
+   submission is only accepted, not processed a second time. Consequences:
+   - A `ProcessStarter` can no longer reject on FIT-Connect, because the
+     submission is already accepted when it runs.
+     `ProcessStartRejectedException` now only marks the row `REJECTED`, and
+     the applicant has to be told via a reply.
+   - Transient failures are retried by the dispatcher with doubling backoff
+     (`antrag-dispatch.*`), and the row is marked `FAILED` after
+     `max-attempts`.
+   - The start and the status update are only atomic if the `ProcessStarter`
+     joins the dispatch transaction (e.g. embedded Camunda 7 on the same
+     DataSource). A remote engine still needs idempotency on `submissionId`.
 
 ## Also removed
 

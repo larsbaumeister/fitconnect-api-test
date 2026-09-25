@@ -7,7 +7,7 @@
 #
 # `fitconnect.*` binds to com.gfi.ozg.fitko.spring.FitConnectProperties -
 # see fitko-spring's docs/configuration.md for the full reference.
-# `antrag-routing.*` binds to com.example.ihk.routing.AntragRoutingProperties
+# `antrag-routing.*` binds to com.gfi.ozg.ficon.routing.AntragRoutingProperties
 # (this project's own routing decision, not part of fitko-spring).
 #
 # Values with no `:default` are required - the app fails fast at startup
@@ -18,6 +18,23 @@
 spring:
   application:
     name: fitko-spring-ihk-sample
+
+  # The inbox (com.gfi.ozg.ficon.inbox): every accepted Antrag lives here until
+  # its process is started. File-based on purpose, even for this test - an
+  # in-memory database would lose every stored-and-accepted but not yet
+  # dispatched Antrag on restart, and FIT-Connect no longer has them.
+  datasource:
+    url: ${IHK_INBOX_DB_URL:jdbc:h2:file:./data/ihk-inbox}
+    username: ${IHK_INBOX_DB_USERNAME:sa}
+    password: ${IHK_INBOX_DB_PASSWORD:}
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Liquibase (src/main/resources/db/changelog);
+      # Hibernate only checks the entities still match it.
+      ddl-auto: validate
 
 fitconnect:
   enabled: true
@@ -59,9 +76,11 @@ fitconnect:
       enabled: true
       initial-delay: 5s
       interval: ${FITCONNECT_POLL_INTERVAL:30s}
-      # A submission whose ProcessStarter failed transiently (threw anything
-      # but ProcessStartRejectedException) stays on the delivery service and
-      # is retried - without this, on every single poll cycle, forever.
+      # A submission the listener could not store in the inbox (e.g. the
+      # database is down) stays on the delivery service and is retried -
+      # without this, on every single poll cycle, forever. ProcessStarter
+      # failures no longer surface here: they happen later, in
+      # AntragDispatcher, with their own retry policy (antrag-dispatch.*).
       retry-cooldown: ${FITCONNECT_RETRY_COOLDOWN:20m}
 
 # The routing decision under test: which ProcessStarter IMPLEMENTATION
@@ -69,8 +88,8 @@ fitconnect:
 # Leistung's LeiKa-Schluessel URN - config-driven so ops/business can add a
 # Leistung, or override it for one region, without further code changes to
 # the routing itself (the implementation classes still have to exist and be
-# Spring beans - see com.example.ihk.processstarter.ProcessStarterLookup).
-# See also com.example.ihk.routing.AntragRoutingProperties / AntragProcessResolver.
+# Spring beans - see com.gfi.ozg.ficon.processstarter.ProcessStarterLookup).
+# See also com.gfi.ozg.ficon.routing.AntragRoutingProperties / AntragProcessResolver.
 #
 # Each value is a fully-qualified class implementing ProcessStarter, not an
 # arbitrary process-key string - different Leistungen (or the same Leistung
@@ -86,16 +105,27 @@ fitconnect:
 antrag-routing:
   process-starter-by-tenant:
     101-aachen:
-      "urn:de:fim:leika:leistung:99050035001000": com.example.ihk.processstarter.impl.LoggingProcessStarter
-      "urn:de:fim:leika:leistung:99050035002000": com.example.ihk.processstarter.impl.NoopProcessStarter
+      "urn:de:fim:leika:leistung:99050035001000": com.gfi.ozg.ficon.processstarter.impl.LoggingProcessStarter
+      "urn:de:fim:leika:leistung:99050035002000": com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter
     133-hannover:
-      "urn:de:fim:leika:leistung:99050035001000": com.example.ihk.processstarter.impl.NoopProcessStarter
-      "urn:de:fim:leika:leistung:99050035002000": com.example.ihk.processstarter.impl.NoopProcessStarter
+      "urn:de:fim:leika:leistung:99050035001000": com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter
+      "urn:de:fim:leika:leistung:99050035002000": com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter
   # Unmapped (tenant, Leistung) pairs are logged and left unresolved (not
   # guessed) when this is unset - see AntragRoutingListener.
-  default-process-starter-class: com.example.ihk.processstarter.impl.NoopProcessStarter
+  default-process-starter-class: com.gfi.ozg.ficon.processstarter.impl.NoopProcessStarter
 
 logging:
   level:
-    com.example.ihk: DEBUG
+    com.gfi.ozg.ficon: DEBUG
     com.gfi.ozg.fitko.spring: DEBUG
+
+# AntragDispatcher: hands stored PENDING submissions to their ProcessStarter.
+antrag-dispatch:
+  enabled: true
+  interval: ${ANTRAG_DISPATCH_INTERVAL:10s}
+  batch-size: 50
+  # A failing start is retried after retry-delay, doubling up to
+  # max-retry-delay, and marked FAILED after max-attempts.
+  max-attempts: 10
+  retry-delay: 30s
+  max-retry-delay: 1h

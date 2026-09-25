@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The inbox. One inbox_submission row per FIT-Connect submission this
+     application has accepted. AntragRoutingListener writes it BEFORE calling
+     accept(), so the primary key doubles as the de-duplication check for a
+     re-delivered submission (e.g. after accept() itself failed).
+     AntragDispatcher then hands PENDING rows to their ProcessStarter. A row
+     holds everything needed to work on the submission later without the
+     delivery service: payload, full metadata (JSON), attachments, and the
+     reply channel's encryption key for sending a reply.
+
+     Liquibase's generic types map per database: uuid -> UUID (H2,
+     PostgreSQL), blob -> BLOB (H2) / BYTEA (PostgreSQL), clob -> CLOB (H2) /
+     TEXT (PostgreSQL). -->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-create-inbox-submission" author="fitko-spring-ihk-sample">
+        <createTable tableName="inbox_submission">
+            <column name="submission_id" type="uuid">
+                <constraints primaryKey="true" primaryKeyName="pk_inbox_submission"/>
+            </column>
+            <column name="case_id" type="uuid">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destination_id" type="uuid">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tenant" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="service_identifier" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="service_name" type="varchar(255)"/>
+            <column name="region" type="varchar(255)"/>
+            <column name="data_mime_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="data_schema_uri" type="varchar(1000)"/>
+            <column name="payload" type="blob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="metadata_json" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <!-- JWK (JSON) from metadata.replyChannel.fitConnect - null when
+                 the sender offered no FIT-Connect reply channel. -->
+            <column name="reply_encryption_key" type="clob"/>
+            <column name="application_date" type="date"/>
+            <column name="received_at" type="timestamp with time zone">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempts" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="next_attempt_at" type="timestamp with time zone">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_error" type="varchar(2000)"/>
+            <column name="process_starter_class" type="varchar(500)"/>
+            <column name="processed_at" type="timestamp with time zone"/>
+            <column name="lock_version" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- AntragDispatcher's "what's due" query. -->
+        <createIndex tableName="inbox_submission" indexName="ix_inbox_submission_due">
+            <column name="status"/>
+            <column name="next_attempt_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="001-create-inbox-attachment" author="fitko-spring-ihk-sample">
+        <createTable tableName="inbox_attachment">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" primaryKeyName="pk_inbox_attachment"/>
+            </column>
+            <column name="submission_id" type="uuid">
+                <constraints nullable="false"
+                             foreignKeyName="fk_inbox_attachment_submission"
+                             references="inbox_submission(submission_id)"/>
+            </column>
+            <column name="sort_order" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attachment_id" type="uuid"/>
+            <column name="file_name" type="varchar(500)"/>
+            <column name="description" type="varchar(2000)"/>
+            <column name="mime_type" type="varchar(255)"/>
+            <column name="purpose" type="varchar(20)"/>
+            <column name="content" type="blob">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="inbox_attachment"
+                             constraintName="uq_inbox_attachment_order"
+                             columnNames="submission_id, sort_order"/>
+    </changeSet>
+
+</databaseChangeLog>
