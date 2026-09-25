@@ -150,6 +150,16 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
    `start()` returns without throwing) - see `ProcessStartRequest`'s javadoc
    for why implementations must not call `accept()`/`reject()` themselves.
 
+9. **A `ProcessStarter` can reject an Antrag by throwing
+   `ProcessStartRejectedException`.** Before this, `start()` could only return
+   (accepted) or throw (left on the delivery service and retried every poll
+   cycle, with no end). A permanently unprocessable Antrag therefore looped
+   forever, and `default-outcome` didn't help, because fitko-spring skips it
+   when a listener throws. Now `AntragRoutingListener` catches
+   `ProcessStartRejectedException` and calls `reject()` with its `Problem`s.
+   Any other exception is still treated as transient and retried, now at most
+   once per `polling.retry-cooldown` (20m) instead of every 30s.
+
 ## Also removed
 
 `fitko-camunda7` (the old plain-CDI/WildFly Camunda 7 sample) was removed

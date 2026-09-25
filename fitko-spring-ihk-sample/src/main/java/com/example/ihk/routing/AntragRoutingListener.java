@@ -1,5 +1,6 @@
 package com.example.ihk.routing;
 
+import com.example.ihk.processstarter.ProcessStartRejectedException;
 import com.example.ihk.processstarter.ProcessStarter;
 import com.example.ihk.processstarter.ProcessStartRequest;
 import com.example.ihk.processstarter.ProcessStarterLookup;
@@ -31,11 +32,19 @@ import java.util.Optional;
  * Camunda-backed one should key the process instance's business key on it
  * and no-op on a duplicate).
  *
- * <p><b>Who calls {@code accept()}:</b> this listener does, once {@link
- * ProcessStarter#start} returns without throwing - see {@link
- * ProcessStartRequest}'s javadoc for why implementations must not call
- * {@link IncomingSubmission#accept()}/{@link IncomingSubmission#reject}
- * themselves even though the whole submission is now in their hands.
+ * <p><b>Who resolves the submission:</b> this listener, based on how {@link
+ * ProcessStarter#start} ends - see {@link ProcessStartRequest}'s javadoc for
+ * why implementations must not call {@link IncomingSubmission#accept()}/{@link
+ * IncomingSubmission#reject} themselves even though the whole submission is
+ * now in their hands:
+ * <ul>
+ *   <li>returns normally - {@code accept()}</li>
+ *   <li>throws {@link ProcessStartRejectedException} - {@code reject()} with
+ *       its {@code Problem}s (permanent failure, not retried)</li>
+ *   <li>throws anything else - propagates; fitko-spring logs it and leaves the
+ *       submission on the delivery service for a later poll cycle (transient
+ *       failure, see {@code fitconnect.receiver.polling.retry-cooldown})</li>
+ * </ul>
  */
 @Component
 public class AntragRoutingListener {
@@ -73,7 +82,14 @@ public class AntragRoutingListener {
         }
 
         ProcessStarter processStarter = processStarters.resolve(processStarterClassName.get());
-        processStarter.start(new ProcessStartRequest(submission, tenant));
+        try {
+            processStarter.start(new ProcessStartRequest(submission, tenant));
+        } catch (ProcessStartRejectedException e) {
+            log.warn("{} rejected submission {} (tenant {}, Leistung {}): {}",
+                    processStarterClassName.get(), submission.getSubmissionId(), tenant, leikaSchluessel, e.getMessage());
+            submission.reject(e.getProblems());
+            return;
+        }
 
         submission.accept();
     }

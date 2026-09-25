@@ -19,10 +19,11 @@ import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
  * <p><b>Do not call {@link IncomingSubmission#accept()}/{@link
  * IncomingSubmission#reject} from {@link ProcessStarter#start}.</b> {@code
  * AntragRoutingListener} still owns resolving the submission - it accepts it
- * once {@code start} returns without throwing. Throw from {@code start}
- * (submission stays unresolved, retried next poll cycle) rather than reject
- * it directly - only the listener has enough context to pick the right
- * {@code Problem} type.
+ * once {@code start} returns without throwing. To reject it, throw {@link
+ * ProcessStartRejectedException} with the fitting {@code Problem}(s) instead;
+ * any other exception leaves it unresolved, to be retried next poll cycle.
+ * Calling {@code accept()}/{@code reject()} directly would make the
+ * listener's own call fail with {@link IllegalStateException}.
  */
 public record ProcessStartRequest(IncomingSubmission submission, String tenant) {
 }

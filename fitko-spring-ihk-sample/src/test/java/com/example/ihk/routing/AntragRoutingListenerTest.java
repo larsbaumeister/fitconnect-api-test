@@ -1,11 +1,13 @@
 package com.example.ihk.routing;
 
+import com.example.ihk.processstarter.ProcessStartRejectedException;
 import com.example.ihk.processstarter.ProcessStartRequest;
 import com.example.ihk.processstarter.ProcessStarter;
 import com.example.ihk.processstarter.ProcessStarterLookup;
 import com.gfi.ozg.fitko.spring.FitConnectProperties;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import com.gfi.ozg.fitko.spring.receive.SubmissionReceivedEvent;
+import dev.fitko.fitconnect.api.domain.model.event.problems.data.DataSchemaViolation;
 import dev.fitko.fitconnect.api.domain.model.submission.PublicService;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
@@ -16,6 +18,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -105,6 +109,34 @@ class AntragRoutingListenerTest {
         verify(submission, never()).accept();
     }
 
+    @Test
+    void rejectsTheSubmissionWithTheProblemsAProcessStarterRejectedItWith() {
+        DataSchemaViolation problem = new DataSchemaViolation();
+        aachenStarter.failWith = new ProcessStartRejectedException("Ausbildungsvertrag incomplete", problem);
+        IncomingSubmission submission = stubSubmission(UUID.randomUUID(), UUID.randomUUID(), AACHEN_DESTINATION, AUSBILDUNGSVERTRAG);
+
+        listener.onAntrag(new SubmissionReceivedEvent(this, submission));
+
+        verify(submission).reject(List.of(problem));
+        verify(submission, never()).accept();
+    }
+
+    @Test
+    void leavesTheSubmissionUnresolvedAndPropagatesATransientProcessStarterFailure() {
+        // Anything other than ProcessStartRejectedException is transient: it
+        // must reach fitko-spring (which logs it and retries next cycle), not
+        // be swallowed or turned into a reject.
+        aachenStarter.failWith = new IllegalStateException("Camunda unreachable");
+        IncomingSubmission submission = stubSubmission(UUID.randomUUID(), UUID.randomUUID(), AACHEN_DESTINATION, AUSBILDUNGSVERTRAG);
+
+        assertThatThrownBy(() -> listener.onAntrag(new SubmissionReceivedEvent(this, submission)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Camunda unreachable");
+
+        verify(submission, never()).accept();
+        verify(submission, never()).reject(anyList());
+    }
+
     private static IncomingSubmission stubSubmission(UUID submissionId, UUID caseId, UUID destinationId, String leikaSchluessel) {
         IncomingSubmission submission = mock(IncomingSubmission.class);
         when(submission.getSubmissionId()).thenReturn(submissionId);
@@ -158,10 +190,14 @@ class AntragRoutingListenerTest {
 
     private static final class RecordingProcessStarterA implements ProcessStarter {
         private final List<ProcessStartRequest> requests = new ArrayList<>();
+        private RuntimeException failWith;
 
         @Override
         public void start(ProcessStartRequest request) {
             requests.add(request);
+            if (failWith != null) {
+                throw failWith;
+            }
         }
     }
 

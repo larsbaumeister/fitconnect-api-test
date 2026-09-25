@@ -20,5 +20,14 @@ package com.example.ihk.processstarter;
  */
 public interface ProcessStarter {
 
+    /**
+     * Starts the downstream process for {@code request}. Returning normally
+     * means the submission is accepted.
+     *
+     * @throws ProcessStartRejectedException if the Antrag can never be
+     *         processed - the submission is rejected with its {@code Problem}s
+     * @throws RuntimeException any other failure is treated as transient -
+     *         the submission stays on the delivery service and is retried
+     */
     void start(ProcessStartRequest request);
 }

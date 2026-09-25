@@ -59,6 +59,10 @@ fitconnect:
       enabled: true
       initial-delay: 5s
       interval: ${FITCONNECT_POLL_INTERVAL:30s}
+      # A submission whose ProcessStarter failed transiently (threw anything
+      # but ProcessStartRejectedException) stays on the delivery service and
+      # is retried - without this, on every single poll cycle, forever.
+      retry-cooldown: ${FITCONNECT_RETRY_COOLDOWN:20m}
 
 # The routing decision under test: which ProcessStarter IMPLEMENTATION
 # CLASS handles a given (tenant, Leistung) pair, keyed by tenant then by the
