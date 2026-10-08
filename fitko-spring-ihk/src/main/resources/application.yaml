@@ -1,0 +1,76 @@
+# Values without a `:default` are required. Get a TEST client from the
+# Self-Service-Portal: https://docs.fitko.de/fit-connect/docs/getting-started/account
+
+spring:
+  application:
+    name: fitko-spring-ihk
+
+  # The inbox (com.gfi.ozg.ficon.inbox). All replicas must use this same
+  # database - it is what keeps them from starting a process twice.
+  datasource:
+    url: ${IHK_INBOX_DB_URL}
+    username: ${IHK_INBOX_DB_USERNAME}
+    password: ${IHK_INBOX_DB_PASSWORD}
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Liquibase; Hibernate only checks the entity matches it.
+      ddl-auto: validate
+
+# com.gfi.ozg.ficon.FitConnectProperties
+fitconnect:
+  environment: ${FITCONNECT_ENVIRONMENT:TEST}
+
+  # Optional: uncomment to get an injectable SDK SenderClient bean for
+  # sending submissions.
+  # sender:
+  #   client-id: ${FITCONNECT_SENDER_CLIENT_ID}
+  #   client-secret: ${FITCONNECT_SENDER_CLIENT_SECRET}
+
+  receiver:
+    client-id: ${FITCONNECT_RECEIVER_CLIENT_ID}
+    client-secret: ${FITCONNECT_RECEIVER_CLIENT_SECRET}
+
+    # Tenant names are what is stored on each submission and what
+    # antrag-routing below is keyed by.
+    tenants:
+      101-aachen:
+        destinations:
+          antragseingang:
+            id: ${FITCONNECT_AACHEN_DESTINATION_ID}
+            signing-key: ${FITCONNECT_AACHEN_SIGNING_KEY:file:./keys/101-aachen/signing_key.json}
+            decryption-keys:
+              - ${FITCONNECT_AACHEN_DECRYPTION_KEY:file:./keys/101-aachen/decryption_key.json}
+      133-hannover:
+        destinations:
+          antragseingang:
+            id: ${FITCONNECT_HANNOVER_DESTINATION_ID}
+            signing-key: ${FITCONNECT_HANNOVER_SIGNING_KEY:file:./keys/133-hannover/signing_key.json}
+            decryption-keys:
+              - ${FITCONNECT_HANNOVER_DECRYPTION_KEY:file:./keys/133-hannover/decryption_key.json}
+
+    polling:
+      enabled: true
+      initial-delay: 5s
+      interval: ${FITCONNECT_POLL_INTERVAL:30s}
+      # A submission whose handling failed is skipped by this replica for
+      # this long, then tried again from the status recorded in the inbox.
+      retry-cooldown: ${FITCONNECT_RETRY_COOLDOWN:20m}
+
+# com.gfi.ozg.ficon.processstarter.ProcessStarterRouter: which ProcessStarter
+# implementation class handles a (tenant, Leistung), keyed by tenant, then by
+# LeiKa-Schluessel URN - in brackets, or Spring drops the colons. The URNs
+# below are placeholders.
+antrag-routing:
+  process-starter-by-tenant:
+    101-aachen:
+      "[urn:de:fim:leika:leistung:99050035001000]": com.gfi.ozg.ficon.processstarter.impl.LoggingProcessStarter
+  # Every unmapped (tenant, Leistung). Without it, such an Antrag is left on
+  # the delivery service.
+  default-process-starter-class: com.gfi.ozg.ficon.processstarter.impl.LoggingProcessStarter
+
+logging:
+  level:
+    com.gfi.ozg.ficon: DEBUG

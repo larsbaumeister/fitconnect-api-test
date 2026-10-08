@@ -1,27 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The inbox: one inbox_submission row per FIT-Connect submission this
-     application has taken on. AntragReceiveListener writes it BEFORE starting
-     the process, so the primary key doubles as the de-duplication check for a
+     application has taken on. AntragHandler writes it BEFORE starting the
+     process, so the primary key doubles as the de-duplication check for a
      re-delivered submission, and every later step (process started, accepted,
      rejected) is recorded here before the next one runs - see InboxStatus.
 
-     Holds what's needed to work on the submission later without the delivery
-     service: payload, full metadata (JSON), and the reply channel's
-     encryption key for sending a reply. NOT the attachments - the
-     ProcessStarter hands those to the process directly.
-
-     Liquibase's generic types map per database: uuid -> UUID (H2,
-     PostgreSQL), blob -> BLOB (H2) / BYTEA (PostgreSQL), clob -> CLOB (H2) /
-     TEXT (PostgreSQL). -->
+     Deliberately no submission content (payload, metadata, attachments,
+     reply key): this application only hands the submission over to the
+     process. Stored is what identifies it, where it went and what happened
+     to it. -->
 <databaseChangeLog
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                             http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
-    <changeSet id="001-create-inbox-submission" author="fitko-spring-ihk-sample">
+    <changeSet id="001-create-inbox-submission" author="fitko-spring-ihk">
         <createTable tableName="inbox_submission">
-            <!-- the submission -->
+            <!-- which submission, and the routing input: where it came in
+                 (destination -> tenant) and which Leistung it is -->
             <column name="submission_id" type="uuid">
                 <constraints primaryKey="true" primaryKeyName="pk_inbox_submission"/>
             </column>
@@ -37,22 +34,6 @@
             <column name="service_identifier" type="varchar(255)">
                 <constraints nullable="false"/>
             </column>
-            <column name="service_name" type="varchar(255)"/>
-            <column name="region" type="varchar(255)"/>
-            <column name="data_mime_type" type="varchar(100)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="data_schema_uri" type="varchar(1000)"/>
-            <column name="payload" type="blob">
-                <constraints nullable="false"/>
-            </column>
-            <column name="metadata_json" type="clob">
-                <constraints nullable="false"/>
-            </column>
-            <!-- JWK (JSON) from metadata.replyChannel.fitConnect - null when
-                 the sender offered no FIT-Connect reply channel. -->
-            <column name="reply_encryption_key" type="clob"/>
-            <column name="application_date" type="date"/>
             <column name="received_at" type="timestamp with time zone">
                 <constraints nullable="false"/>
             </column>
@@ -77,9 +58,10 @@
 
             <!-- why it was rejected (from REJECTION_PENDING on): the
                  ProcessStarter's reason, and the FIT-Connect problems sent
-                 with reject() as a JSON array -->
+                 with the rejection as a JSON array - kept so that a failed
+                 rejection is repeated with the same problems -->
             <column name="rejection_reason" type="varchar(2000)"/>
-            <column name="rejection_problems" type="clob"/>
+            <column name="rejection_problems" type="text"/>
 
             <!-- when FIT-Connect confirmed the accept/reject -->
             <column name="resolved_at" type="timestamp with time zone"/>

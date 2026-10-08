@@ -19,10 +19,11 @@ spring:
   application:
     name: fitko-spring-ihk-sample
 
-  # The inbox (com.gfi.ozg.ficon.inbox): every accepted Antrag lives here until
-  # its process is started. File-based on purpose, even for this test - an
-  # in-memory database would lose every stored-and-accepted but not yet
-  # dispatched Antrag on restart, and FIT-Connect no longer has them.
+  # The inbox (com.gfi.ozg.ficon.inbox): every Antrag this application takes
+  # on, with its status (process started, accepted/rejected and why).
+  # File-based on purpose, even for this test - with an in-memory database a
+  # restart would forget which processes were already started, and a
+  # re-delivered submission would start its process a second time.
   datasource:
     url: ${IHK_INBOX_DB_URL:jdbc:h2:file:./data/ihk-inbox}
     username: ${IHK_INBOX_DB_USERNAME:sa}
@@ -76,12 +77,16 @@ fitconnect:
       enabled: true
       initial-delay: 5s
       interval: ${FITCONNECT_POLL_INTERVAL:30s}
-      # A submission the listener could not store in the inbox (e.g. the
-      # database is down) stays on the delivery service and is retried -
-      # without this, on every single poll cycle, forever. ProcessStarter
-      # failures no longer surface here: they happen later, in
-      # AntragDispatcher, with their own retry policy (antrag-dispatch.*).
+      # A submission whose handling failed (storing it, starting its process,
+      # or the accept/reject itself) stays on the delivery service and is
+      # offered again - without this, on every single poll cycle, forever.
+      # The next attempt continues from the status recorded in the inbox.
       retry-cooldown: ${FITCONNECT_RETRY_COOLDOWN:20m}
+      # Covers download, storing, the ProcessStarter (incl. handing over the
+      # attachments) and accept/reject - the default 10s is tight once a real
+      # process engine is involved. On timeout the attempt is abandoned and
+      # retried later; the inbox status tells where it got to.
+      submission-timeout: ${FITCONNECT_SUBMISSION_TIMEOUT:60s}
 
 # The routing decision under test: which ProcessStarter IMPLEMENTATION
 # CLASS handles a given (tenant, Leistung) pair, keyed by tenant then by the
@@ -118,14 +123,3 @@ logging:
   level:
     com.gfi.ozg.ficon: DEBUG
     com.gfi.ozg.fitko.spring: DEBUG
-
-# AntragDispatcher: hands stored PENDING submissions to their ProcessStarter.
-antrag-dispatch:
-  enabled: true
-  interval: ${ANTRAG_DISPATCH_INTERVAL:10s}
-  batch-size: 50
-  # A failing start is retried after retry-delay, doubling up to
-  # max-retry-delay, and marked FAILED after max-attempts.
-  max-attempts: 10
-  retry-delay: 30s
-  max-retry-delay: 1h

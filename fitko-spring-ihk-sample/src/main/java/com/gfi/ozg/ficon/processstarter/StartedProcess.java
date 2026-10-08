@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * What a {@link ProcessStarter} actually started - stored on the submission
- * by {@code AntragDispatcher} ({@code process_definition}, {@code
+ * in the inbox by {@code SubmissionInbox} ({@code process_definition}, {@code
  * process_instance_id}), so it is traceable which process runs for which
  * Antrag.
  *

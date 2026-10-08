@@ -46,6 +46,11 @@ The example projects keep their own `README.md` as their entry point
   downstream process to start for a given Leistung. See its README for what
   it found `fitko-spring` already covers vs. what a multi-tenant consumer
   still has to build itself.
+- **[`fitko-spring-ihk/`](fitko-spring-ihk)** — the IHK application itself,
+  built on the FIT-Connect SDK directly (no `fitko-spring` dependency): hands
+  each Antrag to its process exactly once across replicas, coordinated
+  through PostgreSQL, without storing submission content. `cd
+  fitko-spring-ihk && mvn test` (needs Docker).
 
 ## End-to-end tests
 

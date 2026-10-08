@@ -30,7 +30,7 @@ public class LoggingProcessStarter implements ProcessStarter {
                         + "{} bytes of {} payload) with a dedicated ProcessStarter implementation "
                         + "- replace with a real one for this Leistung",
                 submission.getSubmissionId(), submission.getCaseId(), request.tenant(),
-                submission.getServiceIdentifier(), submission.getDataAsBytes().length,
+                submission.getServiceType().getIdentifier(), submission.getDataAsBytes().length,
                 submission.getDataMimeType());
         // Nothing is actually started - recorded as such, without an instance id.
         return StartedProcess.withoutInstanceId("logging-only");

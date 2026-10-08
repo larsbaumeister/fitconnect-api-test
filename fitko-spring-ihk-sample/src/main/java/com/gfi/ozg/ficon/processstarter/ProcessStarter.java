@@ -21,17 +21,19 @@ package com.gfi.ozg.ficon.processstarter;
 public interface ProcessStarter {
 
     /**
-     * Starts the downstream process for {@code request}. Called by {@code
-     * AntragDispatcher} inside a transaction, possibly more than once for the
-     * same submission (after a failure) - see {@link ProcessStartRequest}.
+     * Starts the downstream process for {@code request}, including handing
+     * over its attachments. Called by {@code AntragReceiveListener} inside a
+     * transaction (see {@code SubmissionInbox#startProcess}), possibly more
+     * than once for the same submission after a failure - an implementation
+     * talking to a remote system must be idempotent on the submission id.
      *
-     * @return what was started - stored on the submission together with the
-     *         start time. Never {@code null}: that is treated as a failure.
+     * @return what was started - recorded in the inbox, then the submission
+     *         is accepted. Never {@code null}: that is treated as a failure.
      * @throws ProcessStartRejectedException if the Antrag can never be
-     *         processed - it is marked {@code REJECTED} and not retried
+     *         processed - the submission is rejected with its problems
      * @throws RuntimeException any other failure is treated as transient -
-     *         retried with backoff, {@code FAILED} after {@code
-     *         antrag-dispatch.max-attempts}
+     *         the submission stays on the delivery service and is retried on
+     *         a later poll cycle
      */
     StartedProcess start(ProcessStartRequest request);
 }

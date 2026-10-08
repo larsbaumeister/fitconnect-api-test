@@ -26,19 +26,22 @@ Everything specific to this requirement lives in this project instead.
 Three packages, in the order an Antrag passes through them:
 
 - **`com.gfi.ozg.ficon.receive`** - getting an Antrag off FIT-Connect:
-  - `AntragReceiveListener` - on every `SubmissionReceivedEvent`: checks
-    that some `ProcessStarter` is configured for it (otherwise it is left on
-    the delivery service), stores it in the inbox, then `accept()`s it.
-    Starts no process itself.
+  - `AntragReceiveListener` - on every `SubmissionReceivedEvent`, all
+    synchronously: checks that some `ProcessStarter` is configured for it
+    (otherwise it is left on the delivery service), records it in the inbox,
+    starts its process, and only then accepts it - or rejects it, if the
+    `ProcessStarter` says so. A re-delivered submission continues from its
+    recorded status.
   - `TenantDirectory` - which tenant a destination (identified only by UUID
     on the receive event) belongs to.
-- **`com.gfi.ozg.ficon.inbox`** - accepted Antraege, persisted (JPA,
-  Liquibase changelog in `db/changelog`):
-  - `InboxSubmission` / `InboxAttachment` / `SubmissionInbox` - the stored
-    submission with everything needed to work on it later, and the store
-    that detects a re-delivered one.
-  - `AntragDispatcher` (`@Scheduled`) - hands `PENDING` submissions to their
-    `ProcessStarter` and records the outcome (`antrag-dispatch.*`).
+- **`com.gfi.ozg.ficon.inbox`** - what happened to every Antrag, persisted
+  (JPA, Liquibase changelog in `db/changelog`):
+  - `InboxSubmission` - the stored submission (payload, metadata, reply
+    key; no attachments), which process was started for it, and whether and
+    why it was accepted or rejected.
+  - `InboxStatus` - `RECEIVED` -> `PROCESS_STARTED` -> `ACCEPTED`, or
+    `RECEIVED` -> `REJECTION_PENDING` -> `REJECTED`.
+  - `SubmissionInbox` - the state transitions, each in its own transaction.
 - **`com.gfi.ozg.ficon.processstarter`** - the extension point and how the
   right implementation is chosen for an Antrag:
   - `ProcessStarter` - one implementation per way of actually starting a
@@ -159,26 +162,33 @@ tenants and throwaway JWKs, mocking only the SDK's network-facing
    `start()` returns without throwing) - see `ProcessStartRequest`'s javadoc
    for why implementations must not call `accept()`/`reject()` themselves.
 
-9. **Accepted Antraege go into an inbox table first, not straight into a
-   `ProcessStarter`.** `AntragReceiveListener` stores the whole submission
-   (payload, metadata as JSON, attachments, reply-channel key) through JPA
-   (`com.gfi.ozg.ficon.inbox`, Liquibase changelog in `db/changelog`, H2 for now), and only
-   then calls `accept()`. `AntragDispatcher` (`@Scheduled`) hands `PENDING`
-   rows to their `ProcessStarter`, one transaction and row lock per
-   submission. Why: `accept()` can fail on the network after the Antrag was
-   already processed, and FIT-Connect then delivers it again. With the
-   submission id as primary key, the redelivery is detected, and the
-   submission is only accepted, not processed a second time. Consequences:
-   - A `ProcessStarter` can no longer reject on FIT-Connect, because the
-     submission is already accepted when it runs.
-     `ProcessStartRejectedException` now only marks the row `REJECTED`, and
-     the applicant has to be told via a reply.
-   - Transient failures are retried by the dispatcher with doubling backoff
-     (`antrag-dispatch.*`), and the row is marked `FAILED` after
-     `max-attempts`.
-   - The start and the status update are only atomic if the `ProcessStarter`
-     joins the dispatch transaction (e.g. embedded Camunda 7 on the same
-     DataSource). A remote engine still needs idempotency on `submissionId`.
+9. **Every Antrag is recorded in an inbox table, and accepted only once its
+   process has started.** `AntragReceiveListener` handles a submission
+   synchronously: store it (`RECEIVED`), start its process
+   (`PROCESS_STARTED`, with which process and when), `accept()`
+   (`ACCEPTED`). Or, if the `ProcessStarter` throws
+   `ProcessStartRejectedException`, record the reason and problems
+   (`REJECTION_PENDING`) and `reject()` (`REJECTED`). Each step is committed
+   before the next one runs. Why: any step can fail, most notably `accept()`
+   on the network after the process already runs. The submission then stays
+   on the delivery service, and its next delivery continues from the
+   recorded status: a `PROCESS_STARTED` one is only accepted, its process is
+   not started a second time. Consequences:
+   - Attachments are not stored. The `ProcessStarter` gets them from the
+     `IncomingSubmission` and hands them to the process itself.
+   - Retries come from fitko-spring: a failed submission is offered again
+     after `polling.retry-cooldown` (20m). There is no attempt limit; stuck
+     submissions show up with `attempts`/`last_error` in the inbox.
+   - `polling.submission-timeout` (60s here) now covers the process start
+     too.
+   - The start and `PROCESS_STARTED` are only atomic if the `ProcessStarter`
+     joins the transaction (e.g. embedded Camunda 7 on the same DataSource).
+     A remote engine still needs idempotency on `submissionId`.
+   - Known gap: if `accept()`/`reject()` succeeds but recording
+     `ACCEPTED`/`REJECTED` fails (database down at exactly that moment), the
+     row stays `PROCESS_STARTED`/`REJECTION_PENDING` although FIT-Connect has
+     resolved it. Nothing will deliver it again to fix that; it would need a
+     reconciliation job against the FIT-Connect submission status.
 
 ## Also removed
 

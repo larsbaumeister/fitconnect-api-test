@@ -31,7 +31,7 @@ public class NoopProcessStarter implements ProcessStarter {
                         + "{} bytes of {} payload, {} attachment(s)) - point antrag-routing at a real "
                         + "ProcessStarter implementation to actually start it",
                 submission.getSubmissionId(), submission.getCaseId(), request.tenant(),
-                submission.getServiceIdentifier(), submission.getDataAsBytes().length,
+                submission.getServiceType().getIdentifier(), submission.getDataAsBytes().length,
                 submission.getDataMimeType(), submission.getAttachments().size());
         // Nothing is actually started - recorded as such, without an instance id.
         return StartedProcess.withoutInstanceId("noop");

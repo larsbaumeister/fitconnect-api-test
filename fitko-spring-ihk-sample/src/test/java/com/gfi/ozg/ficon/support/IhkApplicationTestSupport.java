@@ -22,16 +22,15 @@ import static org.mockito.Mockito.mock;
 /**
  * Shared full-context setup: both demo tenants ({@code 101-aachen}, {@code
  * 133-hannover}) wired with real (throwaway) keys, the SDK's {@link
- * SubscriberClient} mocked out so nothing touches the network, polling and
- * the scheduled dispatcher switched off (tests trigger both directly), and
- * the inbox on an in-memory H2 database.
+ * SubscriberClient} mocked out so nothing touches the network, polling
+ * switched off (tests call the listener directly), and the inbox on an
+ * in-memory H2 database.
  */
 @SpringBootTest(classes = IhkAntragRouterApplication.class, properties = {
         "fitconnect.sender.enabled=false",
         "fitconnect.receiver.client-id=test-client-id",
         "fitconnect.receiver.client-secret=test-client-secret",
         "fitconnect.receiver.polling.enabled=false",
-        "antrag-dispatch.enabled=false",
         "spring.datasource.url=jdbc:h2:mem:ihk-inbox-test;DB_CLOSE_DELAY=-1"
 })
 @Import(IhkApplicationTestSupport.MockSubscriberClientConfig.class)

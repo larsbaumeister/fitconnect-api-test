@@ -2,23 +2,22 @@ package com.gfi.ozg.ficon.inbox;
 
 import com.gfi.ozg.ficon.processstarter.StartedProcess;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gfi.ozg.fitko.spring.receive.IncomingSubmission;
 import com.nimbusds.jose.jwk.JWK;
+import dev.fitko.fitconnect.api.domain.model.event.problems.Problem;
 import dev.fitko.fitconnect.api.domain.model.metadata.Metadata;
 import dev.fitko.fitconnect.api.domain.model.reply.replychannel.FitConnect;
 import dev.fitko.fitconnect.api.domain.model.reply.replychannel.ReplyChannel;
 import dev.fitko.fitconnect.client.util.MetadataDeserializationHelper;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderBy;
 import jakarta.persistence.PostLoad;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
@@ -31,21 +30,19 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * A FIT-Connect submission as persisted by {@link SubmissionInbox} - a copy
- * of everything {@link IncomingSubmission} carries, so the submission can be
- * worked on (process start, replies) long after it left the delivery
- * service: payload, full {@link Metadata} (as JSON), attachments, and the
- * reply channel's encryption key. Plus the dispatch state {@link
- * AntragDispatcher} maintains.
+ * A FIT-Connect submission as persisted by {@link SubmissionInbox}: a copy of
+ * what {@link IncomingSubmission} carries - payload, full {@link Metadata}
+ * (as JSON), the reply channel's encryption key - except the attachments,
+ * which the {@code ProcessStarter} hands to the process directly. Plus which
+ * process was started for it, and whether and why it was accepted or rejected
+ * on FIT-Connect (see {@link InboxStatus}).
  *
  * <p>To reply later with the SDK: {@code SendableReply.forCase(getCaseId())
  * .setReplyEncryptionKey(getReplyEncryptionKey().orElseThrow())...}, sent
@@ -53,13 +50,15 @@ import java.util.UUID;
  * {@link #getTenant()}.
  *
  * <p>The submission id is the primary key - that's what makes a re-delivered
- * submission detectable (see {@link SubmissionInbox#store}).
+ * submission detectable (see {@link SubmissionInbox#register}). The row is
+ * not itself a lock: concurrent replicas are serialized by a database row
+ * lock on it, see {@link SubmissionInbox}.
  */
 @Entity
 @Table(name = "inbox_submission")
 public class InboxSubmission implements Persistable<UUID> {
 
-    private static final ObjectMapper METADATA_MAPPER =
+    private static final ObjectMapper JSON =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Id
@@ -115,17 +114,11 @@ public class InboxSubmission implements Persistable<UUID> {
     @Column(name = "attempts", nullable = false)
     private int attempts;
 
-    @Column(name = "next_attempt_at", nullable = false)
-    private Instant nextAttemptAt;
-
     @Column(name = "last_error", length = 2000)
     private String lastError;
 
     @Column(name = "process_starter_class", length = 500)
     private String processStarterClass;
-
-    @Column(name = "processed_at")
-    private Instant processedAt;
 
     @Column(name = "process_definition")
     private String processDefinition;
@@ -136,13 +129,21 @@ public class InboxSubmission implements Persistable<UUID> {
     @Column(name = "process_started_at")
     private Instant processStartedAt;
 
+    @Column(name = "rejection_reason", length = 2000)
+    private String rejectionReason;
+
+    /** The {@link Problem}s sent with (or to send with) {@code reject()}, as JSON. */
+    @Lob
+    @Column(name = "rejection_problems")
+    private String rejectionProblems;
+
+    /** When FIT-Connect confirmed the accept/reject. */
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+
     @Version
     @Column(name = "lock_version", nullable = false)
     private long lockVersion;
-
-    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("sortOrder")
-    private List<InboxAttachment> attachments = new ArrayList<>();
 
     /** The id is assigned (the submission id), so Spring Data can't infer new-ness from it - see {@link #isNew()}. */
     @Transient
@@ -169,55 +170,60 @@ public class InboxSubmission implements Persistable<UUID> {
         stored.replyEncryptionKey = replyEncryptionKeyOf(submission.getMetadata()).orElse(null);
         stored.applicationDate = submission.getApplicationDate().orElse(null);
         stored.receivedAt = receivedAt;
-        stored.status = InboxStatus.PENDING;
+        stored.status = InboxStatus.RECEIVED;
         stored.attempts = 0;
-        stored.nextAttemptAt = receivedAt;
-        List<dev.fitko.fitconnect.api.domain.model.attachment.Attachment> sdkAttachments = submission.getAttachments();
-        for (int i = 0; i < sdkAttachments.size(); i++) {
-            stored.attachments.add(InboxAttachment.from(stored, i, sdkAttachments.get(i)));
-        }
         return stored;
     }
 
-    // --- dispatch state transitions (AntragDispatcher only) -----------------
+    // --- state transitions (SubmissionInbox only) ---------------------------
 
-    boolean isDue(Instant now) {
-        return status == InboxStatus.PENDING && !nextAttemptAt.isAfter(now);
-    }
-
-    void markStarted(String processStarterClass, StartedProcess process, Instant now) {
-        this.status = InboxStatus.STARTED;
+    void markProcessStarted(String processStarterClass, StartedProcess process, Instant now) {
+        requireStatus(InboxStatus.RECEIVED);
+        this.status = InboxStatus.PROCESS_STARTED;
         this.attempts++;
         this.processStarterClass = processStarterClass;
         this.processDefinition = process.processDefinition();
         this.processInstanceId = process.processInstanceId();
         this.processStartedAt = now;
-        this.processedAt = now;
         this.lastError = null;
     }
 
-    void markRejected(String processStarterClass, String reason, Instant now) {
-        this.status = InboxStatus.REJECTED;
+    void markRejectionPending(String processStarterClass, String reason, List<Problem> problems) {
+        requireStatus(InboxStatus.RECEIVED);
+        this.status = InboxStatus.REJECTION_PENDING;
         this.attempts++;
         this.processStarterClass = processStarterClass;
-        this.processedAt = now;
-        this.lastError = truncate(reason);
+        this.rejectionReason = truncate(reason);
+        this.rejectionProblems = toJson(problems);
+        this.lastError = null;
     }
 
-    /**
-     * Records a failed attempt: back to {@code PENDING} with {@code
-     * nextAttemptAt = now + retryDelay}, or {@code FAILED} once {@code
-     * maxAttempts} is reached.
-     */
-    void recordFailure(String processStarterClass, String error, Instant now, Duration retryDelay, int maxAttempts) {
-        this.attempts++;
-        this.processStarterClass = processStarterClass;
+    void markAccepted(Instant now) {
+        requireStatus(InboxStatus.PROCESS_STARTED);
+        this.status = InboxStatus.ACCEPTED;
+        this.resolvedAt = now;
+        this.lastError = null;
+    }
+
+    void markRejected(Instant now) {
+        requireStatus(InboxStatus.REJECTION_PENDING);
+        this.status = InboxStatus.REJECTED;
+        this.resolvedAt = now;
+        this.lastError = null;
+    }
+
+    /** A failed attempt at any step - the status stays, so the next delivery continues from it. */
+    void recordFailure(String processStarterClass, String error) {
+        if (status == InboxStatus.RECEIVED) {
+            this.attempts++;
+            this.processStarterClass = processStarterClass;
+        }
         this.lastError = truncate(error);
-        if (attempts >= maxAttempts) {
-            this.status = InboxStatus.FAILED;
-            this.processedAt = now;
-        } else {
-            this.nextAttemptAt = now.plus(retryDelay);
+    }
+
+    private void requireStatus(InboxStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException("Submission " + submissionId + " is " + status + ", not " + expected);
         }
     }
 
@@ -272,7 +278,7 @@ public class InboxSubmission implements Persistable<UUID> {
     public Metadata getMetadata() {
         try {
             return MetadataDeserializationHelper.deserializeMetadata(
-                    METADATA_MAPPER, metadataJson.getBytes(StandardCharsets.UTF_8));
+                    JSON, metadataJson.getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new UncheckedIOException("Stored metadata of submission " + submissionId + " is unreadable", e);
         }
@@ -301,10 +307,6 @@ public class InboxSubmission implements Persistable<UUID> {
         return Optional.ofNullable(applicationDate);
     }
 
-    public List<InboxAttachment> getAttachments() {
-        return List.copyOf(attachments);
-    }
-
     public Instant getReceivedAt() {
         return receivedAt;
     }
@@ -317,10 +319,6 @@ public class InboxSubmission implements Persistable<UUID> {
         return attempts;
     }
 
-    public Instant getNextAttemptAt() {
-        return nextAttemptAt;
-    }
-
     public Optional<String> getLastError() {
         return Optional.ofNullable(lastError);
     }
@@ -329,24 +327,41 @@ public class InboxSubmission implements Persistable<UUID> {
         return Optional.ofNullable(processStarterClass);
     }
 
-    /** When the submission reached its final status ({@code STARTED}, {@code REJECTED} or {@code FAILED}). */
-    public Optional<Instant> getProcessedAt() {
-        return Optional.ofNullable(processedAt);
-    }
-
-    /** Which process was started (a {@link StartedProcess#processDefinition()}) - only when {@code STARTED}. */
+    /** Which process was started (a {@link StartedProcess#processDefinition()}) - set from {@code PROCESS_STARTED} on. */
     public Optional<String> getProcessDefinition() {
         return Optional.ofNullable(processDefinition);
     }
 
-    /** The started instance's id in the target system - only when {@code STARTED} and the system provides one. */
+    /** The started instance's id in the target system, if it provides one - set from {@code PROCESS_STARTED} on. */
     public Optional<String> getProcessInstanceId() {
         return Optional.ofNullable(processInstanceId);
     }
 
-    /** When the process was started - only when {@code STARTED}. */
+    /** When the process was started - set from {@code PROCESS_STARTED} on. */
     public Optional<Instant> getProcessStartedAt() {
         return Optional.ofNullable(processStartedAt);
+    }
+
+    /** Why the ProcessStarter rejected it - set from {@code REJECTION_PENDING} on. */
+    public Optional<String> getRejectionReason() {
+        return Optional.ofNullable(rejectionReason);
+    }
+
+    /** The problems sent to FIT-Connect with {@code reject()} - set from {@code REJECTION_PENDING} on. */
+    public List<Problem> getRejectionProblems() {
+        if (rejectionProblems == null) {
+            return List.of();
+        }
+        try {
+            return JSON.readValue(rejectionProblems, new TypeReference<List<Problem>>() { });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored rejection problems of submission " + submissionId + " are unreadable", e);
+        }
+    }
+
+    /** When FIT-Connect confirmed the accept/reject - set once {@code ACCEPTED}/{@code REJECTED}. */
+    public Optional<Instant> getResolvedAt() {
+        return Optional.ofNullable(resolvedAt);
     }
 
     @Override
@@ -365,11 +380,11 @@ public class InboxSubmission implements Persistable<UUID> {
         this.isNew = false;
     }
 
-    private static String toJson(Metadata metadata) {
+    private static String toJson(Object value) {
         try {
-            return METADATA_MAPPER.writeValueAsString(metadata);
+            return JSON.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Could not serialize submission metadata", e);
+            throw new IllegalStateException("Could not serialize " + value.getClass().getSimpleName(), e);
         }
     }
 
