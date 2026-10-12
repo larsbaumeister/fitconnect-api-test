@@ -1,0 +1,17 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <!-- Feeds the "Log" panel at the bottom of the main window. -->
+  <appender name="PANEL" class="com.gfi.ozg.fitko.swing.ui.LogPanelAppender"/>
+
+  <logger name="dev.fitko" level="INFO"/>
+  <logger name="com.gfi.ozg.fitko.swing" level="INFO"/>
+
+  <root level="WARN">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="PANEL"/>
+  </root>
+</configuration>

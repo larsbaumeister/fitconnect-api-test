@@ -52,6 +52,15 @@ The example projects keep their own `README.md` as their entry point
   through PostgreSQL, without storing submission content. `cd
   fitko-spring-ihk && mvn test` (needs Docker).
 
+## Dev tools
+
+- **[`fitko-swing-client/`](fitko-swing-client)**: a Swing desktop app for
+  sending test submissions to any Zustellpunkt. Connections and Zustellpunkte
+  are managed in the UI. It offers reusable presets with payload
+  placeholders, a searchable history of everything sent, and automatic status
+  tracking (accepted / rejected). It uses the SDK directly.
+  `cd fitko-swing-client && mvn package && java -jar target/fitko-swing-client.jar`.
+
 ## End-to-end tests
 
 - **[`fitko-spring-integration-tests/`](fitko-spring-integration-tests)** — a
