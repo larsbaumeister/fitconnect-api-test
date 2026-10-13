@@ -59,9 +59,9 @@ class JsonFileStoreTest {
         assertEquals(RecordStatus.REJECTED, loaded.status);
         assertEquals("Schema violation", loaded.problems.get(0).title);
         var sent = loaded.toSentSubmission();
-        assertEquals(record.caseId, sent.getCaseId());
-        assertEquals("meta", sent.getAuthenticationTags().getMetadata());
-        assertEquals("att", sent.getAuthenticationTags().getAttachments().get(attachmentId));
+        assertEquals(record.caseId, sent.caseId());
+        assertEquals("meta", sent.authenticationTags().metadata());
+        assertEquals("att", sent.authenticationTags().attachments().get(attachmentId));
     }
 
     @Test

@@ -26,7 +26,6 @@ public class Preset {
     public String payloadTemplate = "";
     public List<AttachmentSpec> attachments = new ArrayList<>();
     public String replyChannelEmail;
-    public String metadataVersion;
 
     public Preset copy() {
         Preset p = new Preset();
@@ -43,7 +42,6 @@ public class Preset {
         p.payloadTemplate = payloadTemplate;
         p.attachments = new ArrayList<>(attachments.stream().map(AttachmentSpec::copy).toList());
         p.replyChannelEmail = replyChannelEmail;
-        p.metadataVersion = metadataVersion;
         return p;
     }
 

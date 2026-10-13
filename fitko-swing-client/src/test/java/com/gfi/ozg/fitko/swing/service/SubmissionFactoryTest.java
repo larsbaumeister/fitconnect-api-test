@@ -2,7 +2,7 @@ package com.gfi.ozg.fitko.swing.service;
 
 import com.gfi.ozg.fitko.swing.model.AttachmentSpec;
 import com.gfi.ozg.fitko.swing.model.DataFormat;
-import dev.fitko.fitconnect.api.domain.sender.SendableSubmission;
+import dev.fitko.fitconnect.sdk.api.OutgoingSubmission;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,23 +28,23 @@ class SubmissionFactoryTest {
     Path dir;
 
     private static SubmissionDraft draft(DataFormat format, String payload, String region, List<AttachmentSpec> attachments,
-                                         String email, UUID caseId, String metadataVersion) {
+                                         String email, UUID caseId) {
         return new SubmissionDraft(UUID.randomUUID(), SERVICE, "Gewerbeanmeldung", region, format, SCHEMA, payload,
-                attachments, email, caseId, metadataVersion);
+                attachments, email, caseId);
     }
 
     @Test
     void minimalXmlSubmission() {
-        SubmissionDraft d = draft(DataFormat.XML, "<a/>", null, List.of(), null, null, null);
-        SendableSubmission s = SubmissionFactory.build(d);
+        SubmissionDraft d = draft(DataFormat.XML, "<a/>", null, List.of(), null, null);
+        OutgoingSubmission s = SubmissionFactory.build(d);
 
         assertEquals(d.destinationId(), s.getDestinationId());
         assertEquals("<a/>", new String(s.getData(), StandardCharsets.UTF_8));
-        assertEquals(SCHEMA, s.getSubmissionSchema().getSchemaUri());
-        assertTrue(s.getSubmissionSchema().getMimeType().toString().toLowerCase().contains("xml"));
-        assertEquals(SERVICE, s.getServiceType().getIdentifier());
+        assertEquals(SCHEMA, s.getSubmissionSchema().schemaUri());
+        assertTrue(s.getSubmissionSchema().mimeType().toString().toLowerCase().contains("xml"));
+        assertEquals(SERVICE, s.getServiceType().identifier());
         assertNull(s.getServiceRegion());
-        assertNull(s.getCaseId());
+        assertNull(s.getCaseReference());
         assertNull(s.getReplyChannel());
         assertTrue(s.getAttachments().isEmpty());
     }
@@ -54,38 +53,28 @@ class SubmissionFactoryTest {
     void jsonWithEverythingOptional() throws Exception {
         Path pdf = Files.write(dir.resolve("antrag.pdf"), new byte[]{1, 2, 3});
         UUID caseId = UUID.randomUUID();
-        String version = SubmissionFactory.supportedMetadataVersions().get(0);
         SubmissionDraft d = draft(DataFormat.JSON, "{\"a\":1}", "DE09", List.of(new AttachmentSpec(pdf.toString(), "application/pdf")),
-                "test@example.org", caseId, version);
+                "test@example.org", caseId);
 
-        SendableSubmission s = SubmissionFactory.build(d);
+        OutgoingSubmission s = SubmissionFactory.build(d);
 
-        assertTrue(s.getSubmissionSchema().getMimeType().toString().toLowerCase().contains("json"));
+        assertTrue(s.getSubmissionSchema().mimeType().toString().toLowerCase().contains("json"));
         assertEquals("DE09", s.getServiceRegion());
-        assertEquals(caseId, s.getCaseId());
+        assertEquals(caseId, s.getCaseReference().caseId());
         assertNotNull(s.getReplyChannel());
-        assertEquals("test@example.org", s.getReplyChannel().getEmail().getAddress());
+        assertEquals("test@example.org", s.getReplyChannel().email().address());
         assertEquals(1, s.getAttachments().size());
         assertEquals("antrag.pdf", s.getAttachments().get(0).getFileName());
         assertEquals("application/pdf", s.getAttachments().get(0).getMimeType());
-        assertEquals(version, s.getMetadataVersion().getVersion().getVersionAsString());
     }
 
     @Test
     void missingRequiredFieldsAreRejectedWithAReadableMessage() {
         SubmissionDraft noDestination = new SubmissionDraft(null, SERVICE, "x", null, DataFormat.XML, SCHEMA, "<a/>",
-                List.of(), null, null, null);
+                List.of(), null, null);
         assertEquals("Destination (Zustellpunkt) is missing",
                 assertThrows(IllegalArgumentException.class, () -> SubmissionFactory.build(noDestination)).getMessage());
         assertThrows(IllegalArgumentException.class,
-                () -> SubmissionFactory.build(draft(DataFormat.XML, " ", null, List.of(), null, null, null)));
-    }
-
-    @Test
-    void unknownMetadataVersionNamesTheSupportedOnes() {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> SubmissionFactory.build(draft(DataFormat.XML, "<a/>", null, List.of(), null, null, "9.9.9")));
-        assertTrue(e.getMessage().contains("9.9.9"));
-        assertFalse(SubmissionFactory.supportedMetadataVersions().isEmpty());
+                () -> SubmissionFactory.build(draft(DataFormat.XML, " ", null, List.of(), null, null)));
     }
 }

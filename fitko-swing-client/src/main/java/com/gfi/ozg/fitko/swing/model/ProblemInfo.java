@@ -1,6 +1,6 @@
 package com.gfi.ozg.fitko.swing.model;
 
-import dev.fitko.fitconnect.api.domain.model.event.problems.Problem;
+import dev.fitko.fitconnect.rest.model.event.problems.Problem;
 
 /** A problem (rejection reason) reported in a status or event-log entry. */
 public class ProblemInfo {

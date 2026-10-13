@@ -1,6 +1,6 @@
 package com.gfi.ozg.fitko.swing.model;
 
-import dev.fitko.fitconnect.api.domain.model.event.EventState;
+import dev.fitko.fitconnect.rest.model.event.EventState;
 
 /**
  * Status of a {@link SubmissionRecord}: the SDK's {@link EventState}s plus

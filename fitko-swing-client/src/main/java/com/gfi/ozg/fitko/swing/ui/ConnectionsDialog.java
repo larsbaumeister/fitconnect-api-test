@@ -43,6 +43,7 @@ public class ConnectionsDialog extends JDialog {
     private final JCheckBox fromEnv = new JCheckBox("Read client id / secret from environment variables");
     private final JTextField clientIdEnv = new JTextField(24);
     private final JTextField clientSecretEnv = new JTextField(24);
+    private final JTextField fromDestination = new JTextField(24);
     private final JTextField authBaseUrl = new JTextField(24);
     private final JTextField submissionBaseUrl = new JTextField(24);
     private final JLabel envStatus = new JLabel(" ");
@@ -59,7 +60,9 @@ public class ConnectionsDialog extends JDialog {
 
         environment.setEditable(true);
         environment.setToolTipText("TEST, STAGE, PROD - or a custom name, which then needs both base URLs");
-        authBaseUrl.setToolTipText("Optional - overrides the environment's built-in auth URL");
+        fromDestination.setToolTipText("<html>The destination ID this client sends from (sent as <code>fromDestinationId</code>)."
+                + "<br>One of the destinations assigned to the client in the Self-Service Portal.</html>");
+        authBaseUrl.setToolTipText("Optional - overrides the environment's built-in auth URL (with or without /token)");
         submissionBaseUrl.setToolTipText("Optional - overrides the environment's built-in submission API URL");
 
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -96,6 +99,7 @@ public class ConnectionsDialog extends JDialog {
                 .row("Client id variable", clientIdEnv)
                 .row("Client secret variable", clientSecretEnv)
                 .full(envStatus, false)
+                .row("From destination", fromDestination)
                 .full(sectionLabel("Advanced: base URL overrides (leave empty for the SDK defaults)"), false)
                 .row("Auth base URL", authBaseUrl)
                 .row("Submission API URL", submissionBaseUrl)
@@ -212,7 +216,7 @@ public class ConnectionsDialog extends JDialog {
         editing = connection;
         boolean present = connection != null;
         for (javax.swing.JComponent c : List.of(label, environment, clientId, clientSecret, showSecret, fromEnv,
-                clientIdEnv, clientSecretEnv, authBaseUrl, submissionBaseUrl, save, test)) {
+                clientIdEnv, clientSecretEnv, fromDestination, authBaseUrl, submissionBaseUrl, save, test)) {
             c.setEnabled(present);
         }
         if (!present) {
@@ -225,6 +229,7 @@ public class ConnectionsDialog extends JDialog {
         fromEnv.setSelected(connection.credentialsFromEnv);
         clientIdEnv.setText(connection.clientIdEnvVar);
         clientSecretEnv.setText(connection.clientSecretEnvVar);
+        fromDestination.setText(connection.fromDestinationId == null ? "" : connection.fromDestinationId.toString());
         authBaseUrl.setText(Ui.nullToEmpty(connection.authBaseUrl));
         submissionBaseUrl.setText(Ui.nullToEmpty(connection.submissionBaseUrl));
         updateEnabled();
@@ -257,6 +262,7 @@ public class ConnectionsDialog extends JDialog {
         target.credentialsFromEnv = fromEnv.isSelected();
         target.clientIdEnvVar = clientIdEnv.getText().trim();
         target.clientSecretEnvVar = clientSecretEnv.getText().trim();
+        target.fromDestinationId = Ui.findUuid(fromDestination.getText());
         target.authBaseUrl = Ui.blankToNull(authBaseUrl.getText());
         target.submissionBaseUrl = Ui.blankToNull(submissionBaseUrl.getText());
     }
@@ -282,6 +288,10 @@ public class ConnectionsDialog extends JDialog {
         }
         if (label.getText().isBlank()) {
             Ui.error(this, "Connection", "Please enter a label.");
+            return;
+        }
+        if (!fromDestination.getText().isBlank() && Ui.findUuid(fromDestination.getText()) == null) {
+            Ui.error(this, "Connection", "'From destination' must be a destination ID (a UUID).");
             return;
         }
         writeForm(editing);

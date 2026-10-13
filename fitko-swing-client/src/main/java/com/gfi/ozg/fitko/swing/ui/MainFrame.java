@@ -225,8 +225,9 @@ public class MainFrame extends JFrame implements AppContext.Navigator {
             int choice = JOptionPane.showOptionDialog(this, """
                             Welcome! To send submissions you need:
 
-                              1. a connection - the client id + secret of a sender client
-                                 from the FIT-Connect Self-Service-Portal, and
+                              1. a connection - the client id + secret of a client from the
+                                 FIT-Connect Self-Service-Portal, plus the ID of one of its
+                                 destinations to send from, and
                               2. a Zustellpunkt - the destination ID you want to send to.
 
                             Set up a connection now?""", "Welcome", JOptionPane.YES_NO_OPTION,

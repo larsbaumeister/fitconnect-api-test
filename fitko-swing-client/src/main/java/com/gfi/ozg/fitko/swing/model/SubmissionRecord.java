@@ -1,7 +1,7 @@
 package com.gfi.ozg.fitko.swing.model;
 
-import dev.fitko.fitconnect.api.domain.model.event.authtags.AuthenticationTags;
-import dev.fitko.fitconnect.api.domain.model.submission.SentSubmission;
+import dev.fitko.fitconnect.rest.model.event.authtags.AuthenticationTags;
+import dev.fitko.fitconnect.rest.model.submission.SentSubmission;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * One submission this client sent (or tried to send). Keeps the
  * authentication tags so its status can still be checked after a restart -
- * {@code SenderClient.getSubmissionStatus} verifies them.
+ * the SDK verifies them when it reads the event log.
  */
 public class SubmissionRecord {
 
@@ -26,6 +26,8 @@ public class SubmissionRecord {
     public String zustellpunktId;
     public String zustellpunktLabel;
     public UUID destinationId;
+    /** The connection's own destination it was sent from; {@code null} for submissions sent before that existed. */
+    public UUID fromDestinationId;
     public UUID submissionId;
     public UUID caseId;
     public String serviceId;
@@ -36,6 +38,7 @@ public class SubmissionRecord {
     public String payload;
     public List<AttachmentSpec> attachments = new ArrayList<>();
     public String replyChannelEmail;
+    /** Only set on submissions sent with the 3.x SDK, which let you pick it. */
     public String metadataVersion;
 
     public String authTagMetadata;
@@ -53,24 +56,28 @@ public class SubmissionRecord {
     public String note;
 
     public void applySent(SentSubmission sent) {
-        submissionId = sent.getSubmissionId();
-        caseId = sent.getCaseId();
-        destinationId = sent.getDestinationId();
-        AuthenticationTags tags = sent.getAuthenticationTags();
+        submissionId = sent.submissionId();
+        caseId = sent.caseId();
+        destinationId = sent.destinationId();
+        fromDestinationId = sent.fromDestinationId();
+        AuthenticationTags tags = sent.authenticationTags();
         if (tags != null) {
-            authTagMetadata = tags.getMetadata();
-            authTagData = tags.getData();
-            authTagAttachments = tags.getAttachments() == null ? new HashMap<>() : new HashMap<>(tags.getAttachments());
+            authTagMetadata = tags.metadata();
+            authTagData = tags.data();
+            authTagAttachments = new HashMap<>(tags.attachments());
         }
     }
 
     public SentSubmission toSentSubmission() {
-        // Setters, not the 3-arg constructor: its order is (data, metadata, attachments), easy to mix up.
-        AuthenticationTags tags = new AuthenticationTags();
-        tags.setMetadata(authTagMetadata);
-        tags.setData(authTagData);
-        tags.setAttachments(authTagAttachments == null ? Map.of() : authTagAttachments);
-        return new SentSubmission(destinationId, submissionId, caseId, tags);
+        AuthenticationTags tags = new AuthenticationTags(authTagMetadata, authTagData,
+                authTagAttachments == null ? Map.of() : authTagAttachments);
+        return SentSubmission.builder()
+                .destinationId(destinationId)
+                .fromDestinationId(fromDestinationId)
+                .submissionId(submissionId)
+                .caseId(caseId)
+                .authenticationTags(tags)
+                .build();
     }
 
     public boolean wasSent() {

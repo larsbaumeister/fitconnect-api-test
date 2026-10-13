@@ -449,6 +449,9 @@ public class HistoryPanel extends JPanel {
         sb.append("Case ID:        ").append(Ui.nullToEmpty(r.caseId)).append('\n');
         sb.append("Destination:    ").append(Ui.nullToEmpty(r.destinationId))
                 .append(r.zustellpunktLabel == null ? "" : "  (" + r.zustellpunktLabel + ")").append('\n');
+        if (r.fromDestinationId != null) {
+            sb.append("From:           ").append(r.fromDestinationId).append('\n');
+        }
         sb.append("Connection:     ").append(Ui.nullToEmpty(r.connectionLabel)).append(" (").append(Ui.nullToEmpty(r.environment)).append(")\n");
         if (r.presetName != null) {
             sb.append("Preset:         ").append(r.presetName).append('\n');
@@ -527,7 +530,6 @@ public class HistoryPanel extends JPanel {
         p.payloadTemplate = r.payload;
         p.attachments = new ArrayList<>(r.attachments.stream().map(AttachmentSpec::copy).toList());
         p.replyChannelEmail = r.replyChannelEmail;
-        p.metadataVersion = r.metadataVersion;
         return p;
     }
 

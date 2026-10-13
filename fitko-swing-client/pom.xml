@@ -18,11 +18,11 @@
   </description>
 
   <properties>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- see https://central.sonatype.com/artifact/dev.fitko.fitconnect.sdk/client -->
-    <fitconnect-sdk.version>3.5.0</fitconnect-sdk.version>
-    <!-- Matches the SDK's own (sdk-java 3.5.0) jackson-databind.version. -->
+    <!-- see https://central.sonatype.com/artifact/dev.fitko.fitconnect/sdk-client -->
+    <fitconnect-sdk.version>4.0.0-rc.2</fitconnect-sdk.version>
+    <!-- For the app's own JSON store. The SDK uses Jackson 3 (tools.jackson), which lives alongside. -->
     <jackson.version>2.22.1</jackson.version>
     <logback.version>1.5.38</logback.version>
     <flatlaf.version>3.5.4</flatlaf.version>
@@ -32,8 +32,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>dev.fitko.fitconnect.sdk</groupId>
-      <artifactId>client</artifactId>
+      <groupId>dev.fitko.fitconnect</groupId>
+      <artifactId>sdk-client</artifactId>
       <version>${fitconnect-sdk.version}</version>
     </dependency>
     <dependency>

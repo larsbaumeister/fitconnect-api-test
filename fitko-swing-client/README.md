@@ -2,11 +2,12 @@
 
 A Swing desktop **dev tool** for sending FIT-Connect submissions to **any**
 Zustellpunkt and following what happens to them. Built directly on the
-FIT-Connect Java SDK (`dev.fitko.fitconnect.sdk:client`, no Spring).
+FIT-Connect Java SDK (`dev.fitko.fitconnect:sdk-client` 4.x, no Spring).
 
-- **Connections**: named sender-client credential sets (client id/secret per
-  environment TEST/STAGE/PROD or a custom one). The secret can stay in
-  environment variables.
+- **Connections**: named client credential sets (client id/secret per
+  environment TEST/STAGE/PROD or a custom one), plus the *From destination*:
+  the client's own destination that submissions are sent from
+  (`fromDestinationId`). The secret can stay in environment variables.
 - **Zustellpunkte**: saved destinations. *Fetch info* reads a destination's
   services, schemas, regions, metadata versions and reply channels from the
   submission API. The compose form then offers exactly those values.
@@ -29,7 +30,7 @@ java -jar target/fitko-swing-client.jar
 # or: mvn -q compile exec:java
 ```
 
-Requires JDK 17+. On a bare Linux or WSL you need an X server (or WSLg) plus
+Requires JDK 21+. On a bare Linux or WSL you need an X server (or WSLg) plus
 fontconfig and fonts (`libx11`, `libxext`, `libxrender`, `libxtst`,
 `fontconfig`, any TTF fonts). Without fonts, FlatLaf can't start, and the app
 falls back to Swing's built-in look.
@@ -38,7 +39,10 @@ falls back to Swing's built-in look.
 
 1. *Welcome* → **Add connection**. Enter the client id and secret of a sender
    client from the [Self-Service-Portal](https://docs.fitko.de/fit-connect/docs/getting-started/account),
-   then click **Test connection**. It fetches an OAuth token.
+   then click **Test connection**. It fetches an OAuth token. Enter the
+   **From destination**: one of the destinations assigned to that client in
+   the portal. A type C online service and a type A/B authority both work.
+   The SDK checks the type on the first send.
 2. **Add Zustellpunkt**. Paste the destination ID, then click **Fetch info**.
 3. In the *New submission* tab, the service, schema and region lists are now
    filled from the destination. A built-in example preset (Gewerbeanmeldung,

@@ -18,8 +18,7 @@ public record SubmissionDraft(
         String payload,
         List<AttachmentSpec> attachments,
         String replyChannelEmail,
-        UUID caseId,
-        String metadataVersion) {
+        UUID caseId) {
 
     public SubmissionDraft {
         attachments = attachments == null ? List.of() : List.copyOf(attachments);

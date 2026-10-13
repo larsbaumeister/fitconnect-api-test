@@ -3,8 +3,8 @@ package com.gfi.ozg.fitko.swing.ui;
 import com.gfi.ozg.fitko.swing.model.ProblemInfo;
 import com.gfi.ozg.fitko.swing.model.SubmissionRecord;
 import com.gfi.ozg.fitko.swing.service.SenderService;
-import dev.fitko.fitconnect.api.domain.model.event.EventLogEntry;
-import dev.fitko.fitconnect.api.domain.model.event.problems.Problem;
+import dev.fitko.fitconnect.rest.model.event.problems.Problem;
+import dev.fitko.fitconnect.sdk.api.event.CaseEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -35,7 +35,7 @@ public class EventLogDialog extends JDialog {
 
     private final AppContext ctx;
     private final SubmissionRecord record;
-    private final List<EventLogEntry> entries = new ArrayList<>();
+    private final List<CaseEvent> entries = new ArrayList<>();
     private final Model model = new Model();
     private final JTable table = new JTable(model);
     private final JTextArea detail = new JTextArea();
@@ -88,17 +88,17 @@ public class EventLogDialog extends JDialog {
 
     private void load() {
         status.setText("Loading event log…");
-        new SwingWorker<List<EventLogEntry>, Void>() {
+        new SwingWorker<List<CaseEvent>, Void>() {
             @Override
-            protected List<EventLogEntry> doInBackground() {
+            protected List<CaseEvent> doInBackground() {
                 return ctx.sender.eventLog(record);
             }
 
             @Override
             protected void done() {
                 try {
-                    List<EventLogEntry> loaded = new ArrayList<>(get());
-                    loaded.sort(Comparator.comparing(EventLogEntry::getIssueTime, Comparator.nullsLast(Comparator.naturalOrder())));
+                    List<CaseEvent> loaded = new ArrayList<>(get());
+                    loaded.sort(Comparator.comparing(CaseEvent::issueTime, Comparator.nullsLast(Comparator.naturalOrder())));
                     entries.clear();
                     entries.addAll(loaded);
                     model.fireTableDataChanged();
@@ -125,21 +125,21 @@ public class EventLogDialog extends JDialog {
         detail.setCaretPosition(0);
     }
 
-    private static String describe(EventLogEntry e) {
+    private static String describe(CaseEvent e) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Event:      ").append(e.getEvent()).append('\n');
-        if (e.getEvent() != null) {
-            sb.append("Schema:     ").append(e.getEvent().getSchemaUri()).append('\n');
-            sb.append("State:      ").append(e.getEvent().getState()).append('\n');
+        sb.append("Event:      ").append(e.event()).append('\n');
+        if (e.event() != null) {
+            sb.append("Schema:     ").append(e.event().getSchemaUri()).append('\n');
+            sb.append("State:      ").append(e.event().getState()).append('\n');
         }
-        sb.append("Issued:     ").append(e.getIssueTime() == null ? "" : Ui.format(e.getIssueTime().toInstant())).append('\n');
-        sb.append("Issuer:     ").append(Ui.nullToEmpty(e.getIssuer())).append('\n');
-        sb.append("Event ID:   ").append(Ui.nullToEmpty(e.getEventId())).append('\n');
-        sb.append("Case ID:    ").append(Ui.nullToEmpty(e.getCaseId())).append('\n');
-        sb.append("Submission: ").append(Ui.nullToEmpty(e.getSubmissionId())).append('\n');
-        if (e.getProblems() != null && !e.getProblems().isEmpty()) {
+        sb.append("Issued:     ").append(e.issueTime() == null ? "" : Ui.format(e.issueTime())).append('\n');
+        sb.append("Issuer:     ").append(Ui.nullToEmpty(e.issuer())).append('\n');
+        sb.append("Event ID:   ").append(Ui.nullToEmpty(e.eventId())).append('\n');
+        sb.append("Case ID:    ").append(Ui.nullToEmpty(e.caseId())).append('\n');
+        sb.append("Submission: ").append(Ui.nullToEmpty(e.submissionId())).append('\n');
+        if (e.problems() != null && !e.problems().isEmpty()) {
             sb.append("\nProblems:\n");
-            for (Problem p : e.getProblems()) {
+            for (Problem p : e.problems()) {
                 sb.append("  • ").append(ProblemInfo.of(p)).append('\n');
             }
         }
@@ -148,7 +148,7 @@ public class EventLogDialog extends JDialog {
 
     private String asText() {
         StringBuilder sb = new StringBuilder();
-        for (EventLogEntry e : entries) {
+        for (CaseEvent e : entries) {
             sb.append(describe(e)).append("\n");
         }
         return sb.toString();
@@ -172,14 +172,14 @@ public class EventLogDialog extends JDialog {
 
         @Override
         public Object getValueAt(int row, int column) {
-            EventLogEntry e = entries.get(row);
+            CaseEvent e = entries.get(row);
             return switch (column) {
-                case 0 -> e.getIssueTime() == null ? null : e.getIssueTime().toInstant();
-                case 1 -> e.getEvent();
-                case 2 -> e.getEvent() == null ? "" : e.getEvent().getState();
-                case 3 -> e.getIssuer();
-                case 4 -> e.getProblems() == null || e.getProblems().isEmpty() ? ""
-                        : e.getProblems().stream().map(p -> ProblemInfo.of(p).toString()).reduce((a, b) -> a + "; " + b).orElse("");
+                case 0 -> e.issueTime();
+                case 1 -> e.event();
+                case 2 -> e.event() == null ? "" : e.event().getState();
+                case 3 -> e.issuer();
+                case 4 -> e.problems() == null || e.problems().isEmpty() ? ""
+                        : e.problems().stream().map(p -> ProblemInfo.of(p).toString()).reduce((a, b) -> a + "; " + b).orElse("");
                 default -> "";
             };
         }

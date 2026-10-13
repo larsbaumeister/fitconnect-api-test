@@ -21,6 +21,11 @@ public class Connection {
     public boolean credentialsFromEnv;
     public String clientIdEnvVar = DEFAULT_CLIENT_ID_ENV;
     public String clientSecretEnvVar = DEFAULT_CLIENT_SECRET_ENV;
+    /**
+     * The client's own destination every submission is sent from ({@code fromDestinationId}). One of
+     * the destinations assigned to the client in the Self-Service Portal.
+     */
+    public UUID fromDestinationId;
     /** Optional overrides of the SDK's built-in environment URLs. */
     public String authBaseUrl;
     public String submissionBaseUrl;
@@ -47,6 +52,7 @@ public class Connection {
         c.credentialsFromEnv = credentialsFromEnv;
         c.clientIdEnvVar = clientIdEnvVar;
         c.clientSecretEnvVar = clientSecretEnvVar;
+        c.fromDestinationId = fromDestinationId;
         c.authBaseUrl = authBaseUrl;
         c.submissionBaseUrl = submissionBaseUrl;
         return c;

@@ -10,7 +10,6 @@ import com.gfi.ozg.fitko.swing.model.Zustellpunkt;
 import com.gfi.ozg.fitko.swing.service.PayloadTemplate;
 import com.gfi.ozg.fitko.swing.service.PayloadTools;
 import com.gfi.ozg.fitko.swing.service.SendRequest;
-import com.gfi.ozg.fitko.swing.service.SubmissionFactory;
 import com.gfi.ozg.fitko.swing.store.AppData;
 
 import javax.swing.BorderFactory;
@@ -92,7 +91,6 @@ public class ComposePanel extends JPanel {
     private final JRadioButton xml = new JRadioButton("XML", true);
     private final JRadioButton json = new JRadioButton("JSON");
     private final JComboBox<String> schemaCombo = editableCombo();
-    private final JComboBox<String> metadataVersionCombo = editableCombo();
     private final JTextField replyEmail = new JTextField();
     private final JLabel replyHint = hintLabel();
     private final JTextField caseId = new JTextField();
@@ -170,7 +168,6 @@ public class ComposePanel extends JPanel {
         formatGroup.add(json);
         replyEmail.getDocument().addDocumentListener(SimpleDocumentListener.of(this::updateHints));
         caseId.setToolTipText("Leave empty to start a new case; set to append this submission to an existing case");
-        metadataVersionCombo.setToolTipText("Leave empty to negotiate with the destination");
 
         attachmentList.setVisibleRowCount(3);
         attachmentList.setTransferHandler(new FileDropHandler());
@@ -193,7 +190,6 @@ public class ComposePanel extends JPanel {
                 .row("Region", regionCombo)
                 .row("Format", flow(xml, json))
                 .row("Data schema", schemaCombo)
-                .row("Metadata version", metadataVersionCombo)
                 .row("Reply e-mail", replyEmail)
                 .full(replyHint, false)
                 .row("Case id", caseId, newCase)
@@ -246,7 +242,6 @@ public class ComposePanel extends JPanel {
         reloadPresets();
         reloadZustellpunkte();
         reloadConnections();
-        metadataVersionOptions();
         Preset last = ctx.data.preset(ctx.data.settings().lastPresetId).orElse(null);
         if (last != null) {
             loadPreset(last);
@@ -377,13 +372,6 @@ public class ComposePanel extends JPanel {
         updateEnvironmentBadge();
     }
 
-    private void metadataVersionOptions() {
-        List<String> options = new ArrayList<>();
-        options.add("");
-        options.addAll(SubmissionFactory.supportedMetadataVersions());
-        setOptions(metadataVersionCombo, options, text(metadataVersionCombo));
-    }
-
     // --- Zustellpunkt / destination info ----------------------------------
 
     /** The saved Zustellpunkt the combo points at, or {@code null} for an ad-hoc destination id. */
@@ -431,12 +419,6 @@ public class ComposePanel extends JPanel {
                 : info.services.stream().map(s -> s.identifier).filter(Objects::nonNull).toList();
         setOptions(serviceIdCombo, services, text(serviceIdCombo).isEmpty() && !services.isEmpty() ? services.get(0) : text(serviceIdCombo));
         onServiceChanged();
-        if (info != null && !info.metadataVersions.isEmpty()) {
-            metadataVersionCombo.setToolTipText("Destination accepts: " + String.join(", ", info.metadataVersions)
-                    + ". Leave empty to negotiate.");
-        } else {
-            metadataVersionCombo.setToolTipText("Leave empty to negotiate with the destination");
-        }
         updateHints();
     }
 
@@ -679,7 +661,6 @@ public class ComposePanel extends JPanel {
         p.serviceRegion = Ui.blankToNull(text(regionCombo));
         p.dataFormat = json.isSelected() ? DataFormat.JSON : DataFormat.XML;
         p.dataSchema = Ui.blankToNull(text(schemaCombo));
-        p.metadataVersion = Ui.blankToNull(text(metadataVersionCombo));
         p.replyChannelEmail = Ui.blankToNull(replyEmail.getText());
         p.payloadTemplate = payload.getText();
         p.attachments = new ArrayList<>();
@@ -706,7 +687,6 @@ public class ComposePanel extends JPanel {
             regionCombo.setSelectedItem(Ui.nullToEmpty(p.serviceRegion));
             (p.dataFormat == DataFormat.JSON ? json : xml).setSelected(true);
             schemaCombo.setSelectedItem(Ui.nullToEmpty(p.dataSchema));
-            metadataVersionCombo.setSelectedItem(Ui.nullToEmpty(p.metadataVersion));
             replyEmail.setText(Ui.nullToEmpty(p.replyChannelEmail));
             payload.setText(Ui.nullToEmpty(p.payloadTemplate));
             payload.setCaretPosition(0);

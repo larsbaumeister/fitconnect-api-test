@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.gfi.ozg.fitko.swing.model.Connection;
 import com.gfi.ozg.fitko.swing.model.DestinationInfo;
 import com.gfi.ozg.fitko.swing.store.Json;
-import dev.fitko.fitconnect.api.config.ApplicationConfig;
+import dev.fitko.fitconnect.rest.client.config.FitConnectEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,11 +29,10 @@ import java.util.UUID;
  * submission API, the same call the SDK makes before every send) so the
  * compose form can offer its services, schemas and regions.
  *
- * <p>The SDK's {@code ClientFactory} doesn't hand out the service that wraps
- * this call, so it's done here with the JDK's HTTP client: an OAuth
- * client-credentials token from the connection's auth server, then the GET.
- * The URLs come from the SDK's own environment definitions via
- * {@link SdkConfig}.
+ * <p>The SDK doesn't hand out the raw destination document, so it's done here
+ * with the JDK's HTTP client: an OAuth client-credentials token from the
+ * connection's auth server, then the GET. The URLs come from the SDK's own
+ * environment definitions via {@link SdkConfig}.
  */
 public class DestinationInfoService {
 
@@ -44,40 +43,32 @@ public class DestinationInfoService {
 
     /** Fetches an OAuth token - proves the credentials and the auth URL work. */
     public String fetchToken(Connection connection) throws IOException, InterruptedException {
-        ApplicationConfig config = SdkConfig.create(connection);
-        return fetchToken(config.getAuthBaseUrl(), connection.resolvedClientId(), connection.resolvedClientSecret());
+        SdkConfig.requireCredentials(connection);
+        FitConnectEnvironment environment = SdkConfig.environment(connection);
+        return fetchToken(environment.authUrl(), connection.resolvedClientId(), connection.resolvedClientSecret());
     }
 
     public DestinationInfo fetch(Connection connection, UUID destinationId) throws IOException, InterruptedException {
-        ApplicationConfig config = SdkConfig.create(connection);
-        String token = fetchToken(config.getAuthBaseUrl(), connection.resolvedClientId(), connection.resolvedClientSecret());
-        List<String> baseUrls = config.getCurrentEnvironment().getSubmissionBaseUrls();
-        IOException last = null;
-        // An environment may list several submission APIs (e.g. the FITKO one and Niedersachsen's);
-        // a destination lives on exactly one of them.
-        for (String baseUrl : baseUrls) {
-            String url = stripTrailingSlash(baseUrl) + "/v2/destinations/" + destinationId;
-            log.info("GET {}", url);
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(TIMEOUT)
-                    .header("Authorization", "Bearer " + token)
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                return parse(response.body());
-            }
-            last = new IOException("GET " + url + " returned HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
-            if (response.statusCode() != 404) {
-                break;
-            }
+        SdkConfig.requireCredentials(connection);
+        FitConnectEnvironment environment = SdkConfig.environment(connection);
+        String token = fetchToken(environment.authUrl(), connection.resolvedClientId(), connection.resolvedClientSecret());
+        String url = SdkConfig.stripTrailingSlash(environment.submissionApiUrl()) + "/v2/destinations/" + destinationId;
+        log.info("GET {}", url);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(TIMEOUT)
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new IOException("GET " + url + " returned HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
         }
-        throw last != null ? last : new IOException("No submission base URL configured");
+        return parse(response.body());
     }
 
-    private String fetchToken(String authBaseUrl, String clientId, String clientSecret) throws IOException, InterruptedException {
-        String url = stripTrailingSlash(authBaseUrl) + "/token";
+    /** @param url the full token endpoint */
+    private String fetchToken(String url, String clientId, String clientSecret) throws IOException, InterruptedException {
         String body = "grant_type=client_credentials"
                 + "&client_id=" + URLEncoder.encode(clientId.trim(), StandardCharsets.UTF_8)
                 + "&client_secret=" + URLEncoder.encode(clientSecret.trim(), StandardCharsets.UTF_8);
@@ -134,10 +125,6 @@ public class DestinationInfoService {
             }
         }
         return names;
-    }
-
-    private static String stripTrailingSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     private static String abbreviate(String text) {
