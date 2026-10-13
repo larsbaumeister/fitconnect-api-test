@@ -274,9 +274,7 @@ public class ComposePanel extends JPanel {
     // --- small builders ---------------------------------------------------
 
     private static JComboBox<String> editableCombo() {
-        JComboBox<String> combo = new JComboBox<>();
-        combo.setEditable(true);
-        return combo;
+        return new ClippedComboBox<>();
     }
 
     private static JLabel hintLabel() {
