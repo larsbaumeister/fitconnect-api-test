@@ -584,6 +584,9 @@ public class HistoryPanel extends JPanel {
                 + "This only forgets them locally - nothing is deleted on FIT-Connect.")) {
             return;
         }
+        // Clear first: refreshTable() reads the selection through the sorter, whose view->model mapping
+        // still reflects the old (longer) list until the model change is fired.
+        table.clearSelection();
         ctx.data.submissions().removeAll(selected);
         ctx.data.saveSubmissions();
     }
